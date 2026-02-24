@@ -3,7 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <title>Stock Rescue | 入荷品廃棄ゼロ化システム (Portfolio Demo)</title>
-    
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="theme-color" content="#1e293b">
 
@@ -23,13 +22,15 @@
                         corporate: { 50:'#f0f9ff', 100:'#e0f2fe', 500:'#0ea5e9', 700:'#0369a1', 800:'#075985', 900:'#0c4a6e' },
                         gray: { 50:'#f9fafb', 100:'#f3f4f6', 200:'#e5e7eb', 300:'#d1d5db', 400:'#9ca3af', 500:'#6b7280', 600:'#4b5563', 700:'#374151', 800:'#1f2937', 900:'#111827' }
                     },
-                    animation: { 'fade-in': 'fadeIn 0.3s ease-out' },
-                    keyframes: { fadeIn: { '0%': { opacity: '0', transform: 'translateY(10px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } } }
+                    animation: { 'fade-in': 'fadeIn 0.3s ease-out', 'slide-up': 'slideUp 0.3s ease-out forwards' },
+                    keyframes: { 
+                        fadeIn: { '0%': { opacity: '0', transform: 'translateY(10px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } },
+                        slideUp: { '0%': { opacity: '0', transform: 'translateY(100%)' }, '100%': { opacity: '1', transform: 'translateY(0)' } }
+                    }
                 }
             }
         }
     </script>
-    
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
     
     <style>
@@ -37,33 +38,24 @@
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         body { -webkit-tap-highlight-color: transparent; background-color: #f9fafb; color: #1f2937; }
         .dark body { background-color: #111827; color: #f3f4f6; }
-        
         .card { background-color: #ffffff; border: 1px solid #e5e7eb; border-radius: 0.75rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
         .dark .card { background-color: #1f2937; border-color: #374151; box-shadow: none; }
-        
         .input-box { background-color: #ffffff; border: 1px solid #d1d5db; color: #1f2937; border-radius: 0.5rem; padding: 0.6rem 0.8rem; outline: none; width: 100%; font-size: 0.875rem; font-weight: 500; transition: all 0.2s; }
         .input-box:focus { border-color: #0ea5e9; box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.2); }
         .dark .input-box { background-color: #374151; border-color: #4b5563; color: #f9fafb; }
         .dark .input-box:focus { border-color: #38bdf8; box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2); }
-
         .nav-link.active { background-color: #e0f2fe; color: #0369a1; font-weight: 700; border-right: 3px solid #0369a1; }
         .dark .nav-link.active { background-color: #1e293b; color: #38bdf8; border-right-color: #38bdf8; }
         .mobile-tab.active { color: #0369a1; } .dark .mobile-tab.active { color: #38bdf8; }
-
         .slide-panel { position: fixed; right: 0; top: 0; width: 100%; max-width: 450px; height: 100vh; background: white; z-index: 2001; transform: translateX(100%); transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1); display: flex; flex-direction: column; border-left: 1px solid #e5e7eb; }
         .dark .slide-panel { background: #1f2937; border-left-color: #374151; }
         .slide-panel.open { transform: translateX(0); }
-        
-        /* 모바일에서 슬라이드 패널 꽉 차게 */
         @media (max-width: 768px) { .slide-panel { max-width: 100%; border-left: none; } }
-
         .overlay { position: fixed; inset: 0; background: rgba(17, 24, 39, 0.6); z-index: 2000; opacity: 0; pointer-events: none; transition: opacity 0.3s; backdrop-filter: blur(2px); }
         .overlay.open { opacity: 1; pointer-events: auto; }
-
         #intro-screen { position: fixed; inset: 0; background-color: #ffffff; z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; transition: opacity 0.8s, visibility 0.8s; }
         .dark #intro-screen { background-color: #111827; }
         #intro-screen.fade-out { opacity: 0; visibility: hidden; pointer-events: none; }
-        
         #galleryOverlay { background-color: rgba(17, 24, 39, 0.95); backdrop-filter: blur(8px); }
         #galleryContainer { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; }
     </style>
@@ -86,6 +78,8 @@
             <span class="text-xs font-bold text-gray-500">Processing...</span>
         </div>
     </div>
+
+    <div id="toast-container" class="fixed bottom-24 md:bottom-10 right-4 z-[10001] flex flex-col gap-2"></div>
 
     <aside class="w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 hidden md:flex flex-col z-20">
         <div class="h-16 flex items-center px-6 border-b border-gray-200 dark:border-gray-700 shrink-0">
@@ -130,11 +124,14 @@
             <div id="view-dashboard" class="hidden p-4 md:p-8 max-w-[1400px] mx-auto w-full animate-fade-in">
                 <div class="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
                     <div>
-                        <h2 class="text-2xl font-bold text-gray-800 dark:text-white">ダッシュボード</h2>
-                        <p class="text-sm text-gray-500 mt-1">在庫状況および統計データ</p>
+                        <h2 class="text-2xl font-bold text-gray-800 dark:text-white">滞留リスク分析</h2>
+                        <p class="text-sm text-gray-500 mt-1">廃棄予定・長期滞留品の削減ダッシュボード</p>
                     </div>
                     <div class="flex items-center gap-2">
-                        <select id="monthFilter" class="input-box w-auto py-1.5 h-9" onchange="DashboardApp.fetchData()"></select>
+                        <button onclick="DashboardApp.downloadCSV()" class="h-9 px-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md text-sm font-medium text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-gray-700 flex items-center gap-2 shadow-sm transition-colors">
+                            <i class="ph-bold ph-download-simple"></i> <span class="hidden sm:inline">CSV出力</span>
+                        </button>
+                        <select id="monthFilter" class="input-box w-auto py-1.5 h-9 font-medium text-gray-600" onchange="DashboardApp.fetchData()"></select>
                         <button onclick="DashboardApp.fetchData()" class="h-9 px-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 shadow-sm"><i class="ph-bold ph-arrows-clockwise"></i></button>
                     </div>
                 </div>
@@ -145,8 +142,8 @@
                         
                         <div class="card p-5 border-l-4 border-l-red-500" id="warningContainer" style="display: none;">
                             <div class="flex justify-between items-center mb-3">
-                                <h3 class="text-sm font-bold text-red-600 dark:text-red-400 flex items-center gap-2"><i class="ph-fill ph-warning-circle"></i> 在庫超過警告</h3>
-                                <input type="number" id="warningThreshold" value="20" class="w-12 text-center text-xs font-bold bg-red-50 dark:bg-red-900/30 text-red-600 rounded border-none outline-none py-1" onchange="DashboardApp.renderWarning()">
+                                <h3 class="text-sm font-bold text-red-600 dark:text-red-400 flex items-center gap-2"><i class="ph-fill ph-warning-circle"></i> 長期滞留 警告</h3>
+                                <input type="number" id="warningThreshold" value="15" class="w-12 text-center text-xs font-bold bg-red-50 dark:bg-red-900/30 text-red-600 rounded border-none outline-none py-1" onchange="DashboardApp.renderWarning()">
                             </div>
                             <div class="max-h-[150px] overflow-y-auto no-scrollbar">
                                 <table class="w-full text-left text-sm"><tbody id="warningTableBody" class="divide-y divide-gray-100 dark:divide-gray-700/50"></tbody></table>
@@ -154,18 +151,18 @@
                         </div>
 
                         <div class="card p-5 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-800/50">
-                            <h3 class="text-sm font-bold text-gray-800 dark:text-white mb-3 flex items-center gap-2"><i class="ph-duotone ph-clipboard-text text-corporate-500"></i> サマリー</h3>
+                            <h3 class="text-sm font-bold text-gray-800 dark:text-white mb-3 flex items-center gap-2"><i class="ph-duotone ph-clipboard-text text-corporate-500"></i> ROI サマリー</h3>
                             <ul id="summaryList" class="space-y-2 text-sm text-gray-600 dark:text-gray-400"></ul>
                         </div>
                     </div>
 
                     <div class="flex flex-col gap-6 md:col-span-8 lg:col-span-5">
                         <div class="card p-5 flex flex-col h-64">
-                            <h3 class="text-sm font-bold text-gray-800 dark:text-white mb-2" id="comparisonChartTitle">月別トレンド</h3>
+                            <h3 class="text-sm font-bold text-gray-800 dark:text-white mb-2" id="comparisonChartTitle">滞留・廃棄リスク在庫の推移 (減少トレンド)</h3>
                             <div class="flex-1 w-full relative"><canvas id="comparisonChart"></canvas></div>
                         </div>
                         <div class="card p-5 flex flex-col h-64">
-                            <h3 class="text-sm font-bold text-gray-800 dark:text-white mb-2" id="deptChartTitle">部署別 在庫</h3>
+                            <h3 class="text-sm font-bold text-gray-800 dark:text-white mb-2" id="deptChartTitle">部署別 滞留在庫</h3>
                             <div class="flex-1 w-full relative"><canvas id="departmentChart"></canvas></div>
                         </div>
                     </div>
@@ -197,7 +194,6 @@
                         </button>
                     </div>
                 </div>
-
                 <div id="input-list-container" class="space-y-4"></div>
             </div>
             
@@ -219,246 +215,75 @@
     </nav>
 
     <div id="form-overlay" class="overlay" onclick="InputApp.closePanel(); DashboardApp.closeLocationDetail();"></div>
-    
     <aside id="form-panel" class="slide-panel">
         <div class="flex justify-between items-center px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shrink-0">
             <h3 id="panel-title" class="text-base font-bold text-gray-900 dark:text-white">詳細情報</h3>
             <div class="flex gap-2">
-                <button id="btn-edit-mode" onclick="InputApp.enableEditMode()" class="hidden w-8 h-8 rounded-md bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-gray-600 dark:text-gray-300">
-                    <i class="ph-bold ph-pencil-simple text-lg"></i>
-                </button>
-                <button onclick="InputApp.closePanel()" class="w-8 h-8 rounded-md bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-gray-600 dark:text-gray-300">
-                    <i class="ph-bold ph-x text-lg"></i>
-                </button>
+                <button id="btn-edit-mode" onclick="InputApp.enableEditMode()" class="hidden w-8 h-8 rounded-md bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-gray-600 dark:text-gray-300"><i class="ph-bold ph-pencil-simple text-lg"></i></button>
+                <button onclick="InputApp.closePanel()" class="w-8 h-8 rounded-md bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-gray-600 dark:text-gray-300"><i class="ph-bold ph-x text-lg"></i></button>
             </div>
         </div>
-
         <div class="flex-1 overflow-y-auto px-6 py-5 bg-gray-50 dark:bg-gray-900">
-            
             <div id="detail-view" class="space-y-6 animate-fade-in hidden">
                 <div id="detail-photos" class="w-full"></div>
                 <div class="grid grid-cols-2 gap-3">
-                    <div class="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
-                        <span class="block text-[10px] text-gray-400 font-bold uppercase mb-1">日付</span>
-                        <span id="view-date" class="font-bold text-gray-800 dark:text-white text-sm"></span>
-                    </div>
-                    <div class="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
-                        <span class="block text-[10px] text-gray-400 font-bold uppercase mb-1">数量</span>
-                        <div class="flex items-baseline gap-1">
-                            <span id="view-qty" class="font-black text-corporate-600 dark:text-corporate-400 text-xl"></span>
-                            <span class="text-[10px] text-gray-400 font-bold">個</span>
-                        </div>
-                    </div>
+                    <div class="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700"><span class="block text-[10px] text-gray-400 font-bold uppercase mb-1">日付</span><span id="view-date" class="font-bold text-gray-800 dark:text-white text-sm"></span></div>
+                    <div class="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700"><span class="block text-[10px] text-gray-400 font-bold uppercase mb-1">数量</span><div class="flex items-baseline gap-1"><span id="view-qty" class="font-black text-corporate-600 dark:text-corporate-400 text-xl"></span><span class="text-[10px] text-gray-400 font-bold">個</span></div></div>
                 </div>
                 <div class="space-y-3">
-                    <div class="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
-                        <span class="block text-[10px] text-gray-400 font-bold uppercase mb-1">名前</span>
-                        <p id="view-name" class="text-base font-bold text-gray-900 dark:text-white"></p>
-                    </div>
-                    <div class="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
-                        <span class="block text-[10px] text-gray-400 font-bold uppercase mb-1">部署 / 置き場</span>
-                        <p id="view-location" class="text-sm font-medium text-gray-600 dark:text-gray-300"></p>
-                    </div>
+                    <div class="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700"><span class="block text-[10px] text-gray-400 font-bold uppercase mb-1">名前</span><p id="view-name" class="text-base font-bold text-gray-900 dark:text-white"></p></div>
+                    <div class="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700"><span class="block text-[10px] text-gray-400 font-bold uppercase mb-1">部署 / 置き場</span><p id="view-location" class="text-sm font-medium text-gray-600 dark:text-gray-300"></p></div>
                 </div>
             </div>
-
             <form id="dataForm" class="hidden flex flex-col pb-20">
                 <input type="hidden" id="form-id">
-                
-                <div class="mb-5">
-                    <label class="block text-xs font-bold text-gray-500 mb-2">写真 (最大3枚)</label>
-                    <div class="grid grid-cols-3 gap-3">
-                        <div class="aspect-square rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 flex items-center justify-center cursor-pointer relative overflow-hidden group" onclick="InputApp.openSourceSelect('file1')">
-                            <i class="ph-bold ph-camera text-2xl text-gray-400 group-hover:text-corporate-500 transition-colors"></i>
-                            <img id="preview1" class="absolute inset-0 w-full h-full object-cover hidden">
-                            <input type="file" id="file1" accept="image/*" class="hidden" onchange="InputApp.handleFileSelect(this, 'preview1')">
-                            <button type="button" id="btn-draw-file1" onclick="InputApp.openDrawing('file1', event)" class="absolute bottom-1 right-1 w-8 h-8 bg-black/60 text-white rounded-full hidden items-center justify-center z-10"><i class="ph-bold ph-pencil-simple text-sm"></i></button>
-                        </div>
-                        <div class="aspect-square rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 flex items-center justify-center cursor-pointer relative overflow-hidden group" onclick="InputApp.openSourceSelect('file2')">
-                            <i class="ph-bold ph-plus text-2xl text-gray-400 group-hover:text-corporate-500 transition-colors"></i>
-                            <img id="preview2" class="absolute inset-0 w-full h-full object-cover hidden">
-                            <input type="file" id="file2" accept="image/*" class="hidden" onchange="InputApp.handleFileSelect(this, 'preview2')">
-                            <button type="button" id="btn-draw-file2" onclick="InputApp.openDrawing('file2', event)" class="absolute bottom-1 right-1 w-8 h-8 bg-black/60 text-white rounded-full hidden items-center justify-center z-10"><i class="ph-bold ph-pencil-simple text-sm"></i></button>
-                        </div>
-                        <div class="aspect-square rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 flex items-center justify-center cursor-pointer relative overflow-hidden group" onclick="InputApp.openSourceSelect('file3')">
-                            <i class="ph-bold ph-plus text-2xl text-gray-400 group-hover:text-corporate-500 transition-colors"></i>
-                            <img id="preview3" class="absolute inset-0 w-full h-full object-cover hidden">
-                            <input type="file" id="file3" accept="image/*" class="hidden" onchange="InputApp.handleFileSelect(this, 'preview3')">
-                            <button type="button" id="btn-draw-file3" onclick="InputApp.openDrawing('file3', event)" class="absolute bottom-1 right-1 w-8 h-8 bg-black/60 text-white rounded-full hidden items-center justify-center z-10"><i class="ph-bold ph-pencil-simple text-sm"></i></button>
-                        </div>
-                    </div>
-                </div>
-
+                <div class="mb-5"><label class="block text-xs font-bold text-gray-500 mb-2">写真 (最大3枚)</label><div class="grid grid-cols-3 gap-3">
+                    <div class="aspect-square rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 flex items-center justify-center cursor-pointer relative overflow-hidden group" onclick="InputApp.openSourceSelect('file1')"><i class="ph-bold ph-camera text-2xl text-gray-400 group-hover:text-corporate-500"></i><img id="preview1" class="absolute inset-0 w-full h-full object-cover hidden"><input type="file" id="file1" accept="image/*" class="hidden" onchange="InputApp.handleFileSelect(this, 'preview1')"><button type="button" id="btn-draw-file1" onclick="InputApp.openDrawing('file1', event)" class="absolute bottom-1 right-1 w-8 h-8 bg-black/60 text-white rounded-full hidden items-center justify-center z-10"><i class="ph-bold ph-pencil-simple text-sm"></i></button></div>
+                    <div class="aspect-square rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 flex items-center justify-center cursor-pointer relative overflow-hidden group" onclick="InputApp.openSourceSelect('file2')"><i class="ph-bold ph-plus text-2xl text-gray-400 group-hover:text-corporate-500"></i><img id="preview2" class="absolute inset-0 w-full h-full object-cover hidden"><input type="file" id="file2" accept="image/*" class="hidden" onchange="InputApp.handleFileSelect(this, 'preview2')"><button type="button" id="btn-draw-file2" onclick="InputApp.openDrawing('file2', event)" class="absolute bottom-1 right-1 w-8 h-8 bg-black/60 text-white rounded-full hidden items-center justify-center z-10"><i class="ph-bold ph-pencil-simple text-sm"></i></button></div>
+                    <div class="aspect-square rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 flex items-center justify-center cursor-pointer relative overflow-hidden group" onclick="InputApp.openSourceSelect('file3')"><i class="ph-bold ph-plus text-2xl text-gray-400 group-hover:text-corporate-500"></i><img id="preview3" class="absolute inset-0 w-full h-full object-cover hidden"><input type="file" id="file3" accept="image/*" class="hidden" onchange="InputApp.handleFileSelect(this, 'preview3')"><button type="button" id="btn-draw-file3" onclick="InputApp.openDrawing('file3', event)" class="absolute bottom-1 right-1 w-8 h-8 bg-black/60 text-white rounded-full hidden items-center justify-center z-10"><i class="ph-bold ph-pencil-simple text-sm"></i></button></div>
+                </div></div>
                 <div class="grid grid-cols-2 gap-4 mb-4">
-                    <div>
-                        <label class="block text-xs font-bold text-gray-500 mb-1">日付</label>
-                        <input type="date" id="form-date" class="input-box">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-gray-500 mb-1">数量</label>
-                        <div class="relative">
-                            <input type="number" id="form-qty" class="input-box pr-8 font-bold text-corporate-600" placeholder="0">
-                            <span class="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-gray-400">個</span>
-                        </div>
-                    </div>
+                    <div><label class="block text-xs font-bold text-gray-500 mb-1">日付</label><input type="date" id="form-date" class="input-box"></div>
+                    <div><label class="block text-xs font-bold text-gray-500 mb-1">数量</label><div class="relative"><input type="number" id="form-qty" class="input-box pr-8 font-bold text-corporate-600" placeholder="0"><span class="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-gray-400">個</span></div></div>
                 </div>
-
-                <div class="mb-4 relative">
-                    <label class="block text-xs font-bold text-gray-500 mb-1">名前</label>
-                    <input type="text" id="form-name" class="input-box font-bold" placeholder="アイテム名を入力" autocomplete="off" onkeyup="InputApp.handleNameInput(this)">
-                    <ul id="name-suggestions" class="hidden absolute left-0 top-[100%] mt-1 z-50 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-48 overflow-y-auto text-sm"></ul>
-                </div>
-
-                <div class="mb-4">
-                    <label class="block text-xs font-bold text-gray-500 mb-1">部署 / 置き場</label>
-                    <div class="flex flex-col gap-2">
-                        <select id="form-dept" class="input-box">
-                            <option value="">部署を選択</option>
-                            <option value="製造部">製造部</option><option value="総務部">総務部</option><option value="資材課">資材課</option><option value="安全管理">安全管理</option>
-                        </select>
-                        <div class="flex gap-2">
-                            <input type="text" id="form-location" class="input-box flex-1" placeholder="置き場 (例: A-1)">
-                            <button type="button" onclick="InputApp.startQRScanner()" class="w-10 bg-corporate-50 dark:bg-corporate-900/30 text-corporate-600 border border-corporate-200 dark:border-corporate-700 rounded-lg flex items-center justify-center hover:bg-corporate-100 transition-colors">
-                                <i class="ph-bold ph-qr-code text-xl"></i>
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                <div class="mb-4 relative"><label class="block text-xs font-bold text-gray-500 mb-1">名前</label><input type="text" id="form-name" class="input-box font-bold" placeholder="アイテム名を入力" autocomplete="off" onkeyup="InputApp.handleNameInput(this)"><ul id="name-suggestions" class="hidden absolute left-0 top-[100%] mt-1 z-50 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-48 overflow-y-auto text-sm"></ul></div>
+                <div class="mb-4"><label class="block text-xs font-bold text-gray-500 mb-1">部署 / 置き場</label><div class="flex flex-col gap-2"><select id="form-dept" class="input-box"><option value="">部署を選択</option><option value="製造部">製造部</option><option value="総務部">総務部</option><option value="資材課">資材課</option><option value="安全管理">安全管理</option></select><div class="flex gap-2"><input type="text" id="form-location" class="input-box flex-1" placeholder="置き場 (例: A-1)"><button type="button" onclick="InputApp.startQRScanner()" class="w-10 bg-corporate-50 dark:bg-corporate-900/30 text-corporate-600 border border-corporate-200 dark:border-corporate-700 rounded-lg flex items-center justify-center hover:bg-corporate-100 transition-colors"><i class="ph-bold ph-qr-code text-xl"></i></button></div></div></div>
             </form>
         </div>
-
-        <div id="form-footer" class="hidden absolute bottom-0 left-0 w-full p-4 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 shrink-0">
-            <div class="flex items-center justify-between mb-3">
-                <span id="session-counter-display" class="text-xs font-bold text-corporate-600 bg-corporate-50 dark:bg-corporate-900/30 px-2 py-1 rounded">今回: 0件</span>
-                <label class="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" id="continuous-mode" class="w-4 h-4 rounded border-gray-300 text-corporate-600 focus:ring-corporate-500">
-                    <span class="text-xs font-bold text-gray-500">続けて登録</span>
-                </label>
-            </div>
-            <button onclick="InputApp.submitData()" class="w-full py-3 bg-corporate-700 hover:bg-corporate-800 text-white font-bold rounded-lg shadow-md transition-colors active:scale-[0.98]">
-                保存する
-            </button>
-        </div>
+        <div id="form-footer" class="hidden absolute bottom-0 left-0 w-full p-4 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 shrink-0"><div class="flex items-center justify-between mb-3"><span id="session-counter-display" class="text-xs font-bold text-corporate-600 bg-corporate-50 dark:bg-corporate-900/30 px-2 py-1 rounded">今回: 0件</span><label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="continuous-mode" class="w-4 h-4 rounded border-gray-300 text-corporate-600 focus:ring-corporate-500"><span class="text-xs font-bold text-gray-500">続けて登録</span></label></div><button onclick="InputApp.submitData()" class="w-full py-3 bg-corporate-700 hover:bg-corporate-800 text-white font-bold rounded-lg shadow-md transition-colors active:scale-[0.98]">保存する</button></div>
     </aside>
 
-    <aside id="dashboard-panel" class="slide-panel">
-        <div class="flex justify-between items-center px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
-            <h3 id="dash-panel-title" class="text-base font-bold text-gray-900 dark:text-white">Location</h3>
-            <button onclick="DashboardApp.closeLocationDetail()" class="w-8 h-8 rounded-md bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-gray-500"><i class="ph-bold ph-x"></i></button>
-        </div>
-        <div id="dash-panel-content" class="flex-1 overflow-y-auto p-4 space-y-2 bg-gray-50 dark:bg-gray-900"></div>
-    </aside>
-
-    <div id="galleryOverlay" class="fixed inset-0 z-[3000] hidden flex-col justify-center animate-fade-in" onclick="InputApp.closeGallery(event)">
-        <div class="absolute top-0 w-full p-4 flex justify-between items-center z-50 bg-gradient-to-b from-black/80 to-transparent">
-            <div class="text-white font-bold truncate pr-4" id="galleryTitle">Photo</div>
-            <button class="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-white backdrop-blur"><i class="ph-bold ph-x text-lg"></i></button>
-        </div>
-        <div id="galleryContainer" class="w-full h-full overflow-y-auto p-4 py-20 snap-y snap-mandatory flex flex-col items-center gap-4"></div>
-    </div>
-
-    <div id="sourceSelectOverlay" class="fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-[5000] hidden flex-col justify-end transition-opacity" onclick="InputApp.closeSourceSelect()">
-        <div class="bg-white dark:bg-gray-800 w-full rounded-t-3xl p-6 pb-10 transform transition-transform translate-y-full" id="sourceSelectBox" onclick="event.stopPropagation()">
-            <div class="w-12 h-1.5 bg-gray-200 dark:bg-gray-600 rounded-full mx-auto mb-6"></div>
-            <h3 class="text-center text-lg font-bold text-gray-900 dark:text-white mb-6">写真を追加</h3>
-            <div class="space-y-3">
-                <button onclick="InputApp.confirmSource('camera')" class="w-full py-4 bg-gray-50 dark:bg-gray-700 rounded-xl flex items-center justify-center gap-3 font-bold text-gray-800 dark:text-white"><i class="ph-bold ph-camera text-xl text-corporate-500"></i> カメラ</button>
-                <button onclick="InputApp.confirmSource('gallery')" class="w-full py-4 bg-gray-50 dark:bg-gray-700 rounded-xl flex items-center justify-center gap-3 font-bold text-gray-800 dark:text-white"><i class="ph-bold ph-image text-xl text-purple-500"></i> ギャラリー</button>
-                <button onclick="InputApp.closeSourceSelect()" class="w-full py-4 mt-2 text-gray-400 font-bold">キャンセル</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="qr-overlay" class="fixed inset-0 z-[9999] bg-black hidden flex-col">
-        <div class="absolute top-0 left-0 w-full p-6 flex justify-end z-10">
-            <button onclick="InputApp.stopQRScanner()" class="w-10 h-10 bg-black/50 text-white rounded-full flex items-center justify-center backdrop-blur-md"><i class="ph-bold ph-x text-xl"></i></button>
-        </div>
-        <div class="flex-1 relative flex items-center justify-center overflow-hidden">
-            <video id="qr-video" class="absolute inset-0 w-full h-full object-cover"></video>
-            <div class="w-64 h-64 border-2 border-corporate-500 rounded-3xl relative z-10 flex items-center justify-center">
-                <div class="w-full h-0.5 bg-corporate-500/50 absolute top-1/2 animate-pulse"></div>
-            </div>
-            <div class="absolute bottom-20 text-white text-sm font-bold bg-black/50 px-4 py-2 rounded-full backdrop-blur">QRコードを枠に合わせてください</div>
-        </div>
-        <canvas id="qr-canvas" class="hidden"></canvas>
-    </div>
-
-    <div id="drawingOverlay" class="fixed inset-0 bg-gray-900 z-[6000] hidden flex-col">
-        <div class="flex justify-between items-center px-4 py-3 bg-gray-900 text-white shrink-0 border-b border-gray-800">
-            <button onclick="InputApp.closeDrawing()" class="text-gray-400 font-bold text-sm">キャンセル</button>
-            <span class="font-bold">写真編集</span>
-            <button onclick="InputApp.saveDrawing()" class="text-corporate-400 font-bold text-sm">保存</button>
-        </div>
-        <div class="flex-1 relative bg-black flex items-center justify-center overflow-hidden touch-none" id="canvas-container">
-            <canvas id="drawCanvas" class="max-w-full max-h-full object-contain"></canvas>
-        </div>
-        <div class="px-4 py-4 bg-gray-900 text-white shrink-0 flex flex-col gap-4 pb-safe">
-            <div class="flex justify-center gap-4 border-b border-gray-800 pb-4">
-                <button onclick="InputApp.setTool('pen')" id="tool-pen" class="tool-btn w-10 h-10 rounded-xl bg-gray-700 text-white flex items-center justify-center ring-2 ring-corporate-500"><i class="ph-bold ph-pencil-simple text-xl"></i></button>
-                <button onclick="InputApp.setTool('rect')" id="tool-rect" class="tool-btn w-10 h-10 rounded-xl bg-gray-800 text-gray-400 flex items-center justify-center"><i class="ph-bold ph-square text-xl"></i></button>
-                <button onclick="InputApp.setTool('circle')" id="tool-circle" class="tool-btn w-10 h-10 rounded-xl bg-gray-800 text-gray-400 flex items-center justify-center"><i class="ph-bold ph-circle text-xl"></i></button>
-            </div>
-            <div class="flex justify-center gap-6 items-center">
-                <button onclick="InputApp.setPenColor('red')" id="color-red" class="w-8 h-8 rounded-full bg-red-500 border-2 border-white ring-2 ring-red-500/50 transition-transform active:scale-90"></button>
-                <button onclick="InputApp.setPenColor('yellow')" id="color-yellow" class="w-8 h-8 rounded-full bg-yellow-400 border-2 border-transparent opacity-50 transition-transform active:scale-90"></button>
-                <div class="w-px h-8 bg-gray-700 mx-2"></div>
-                <button onclick="InputApp.undoDrawing()" class="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center border border-gray-700 active:bg-gray-700"><i class="ph-bold ph-arrow-u-up-left text-lg"></i></button>
-                <button onclick="InputApp.clearCanvas()" class="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center border border-gray-700 active:bg-gray-700"><i class="ph-bold ph-trash text-lg"></i></button>
-            </div>
-        </div>
-    </div>
-
-    <div id="delete-modal" class="fixed inset-0 z-[10000] hidden flex items-center justify-center bg-gray-900/50 backdrop-blur-sm transition-opacity opacity-0">
-        <div class="bg-white dark:bg-gray-800 w-[90%] max-w-sm rounded-2xl p-6 shadow-xl transform scale-95 transition-all">
-            <div class="flex flex-col items-center text-center">
-                <div class="w-12 h-12 rounded-full bg-red-50 dark:bg-red-900/30 text-red-500 flex items-center justify-center mb-4"><i class="ph-fill ph-trash text-2xl"></i></div>
-                <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-2">削除しますか？</h3>
-                <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">この操作は取り消せません。</p>
-                <div class="flex gap-3 w-full">
-                    <button onclick="InputApp.closeDeleteModal()" class="flex-1 py-2.5 rounded-lg font-medium text-gray-600 bg-gray-100 dark:bg-gray-700 dark:text-gray-300">キャンセル</button>
-                    <button onclick="InputApp.confirmDelete()" class="flex-1 py-2.5 rounded-lg font-medium text-white bg-red-500 hover:bg-red-600">削除する</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div id="custom-alert-modal" class="fixed inset-0 z-[11000] hidden flex items-center justify-center bg-gray-900/50 backdrop-blur-sm transition-opacity opacity-0">
-        <div class="bg-white dark:bg-gray-800 w-[85%] max-w-[320px] rounded-2xl p-6 shadow-xl transform scale-95 transition-all relative overflow-hidden">
-            <div class="absolute top-0 left-0 w-full h-1 bg-red-500"></div>
-            <div class="flex flex-col items-center text-center mb-5 mt-2">
-                <div class="text-red-500 mb-2"><i class="ph-fill ph-warning-octagon text-4xl"></i></div>
-                <h3 class="text-base font-bold text-gray-900 dark:text-white">入力エラー</h3>
-                <p class="text-xs text-gray-500 mt-1">必須項目が不足しています</p>
-            </div>
-            <div class="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-3 mb-5 border border-gray-100 dark:border-gray-700">
-                <ul id="custom-alert-list" class="space-y-1 text-xs"></ul>
-            </div>
-            <button onclick="InputApp.closeCustomAlert()" class="w-full py-2.5 rounded-lg font-bold text-white bg-gray-800 hover:bg-gray-900 dark:bg-gray-700 dark:hover:bg-gray-600">確認して修正</button>
-        </div>
-    </div>
-
+    <aside id="dashboard-panel" class="slide-panel"><div class="flex justify-between items-center px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800"><h3 id="dash-panel-title" class="text-base font-bold text-gray-900 dark:text-white">Location</h3><button onclick="DashboardApp.closeLocationDetail()" class="w-8 h-8 rounded-md bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-gray-500"><i class="ph-bold ph-x"></i></button></div><div id="dash-panel-content" class="flex-1 overflow-y-auto p-4 space-y-2 bg-gray-50 dark:bg-gray-900"></div></aside>
+    <div id="galleryOverlay" class="fixed inset-0 z-[3000] hidden flex-col justify-center animate-fade-in" onclick="InputApp.closeGallery(event)"><div class="absolute top-0 w-full p-4 flex justify-between items-center z-50 bg-gradient-to-b from-black/80 to-transparent"><div class="text-white font-bold truncate pr-4" id="galleryTitle">Photo</div><button class="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-white backdrop-blur"><i class="ph-bold ph-x text-lg"></i></button></div><div id="galleryContainer" class="w-full h-full overflow-y-auto p-4 py-20 snap-y snap-mandatory flex flex-col items-center gap-4"></div></div>
+    <div id="sourceSelectOverlay" class="fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-[5000] hidden flex-col justify-end transition-opacity" onclick="InputApp.closeSourceSelect()"><div class="bg-white dark:bg-gray-800 w-full rounded-t-3xl p-6 pb-10 transform transition-transform translate-y-full" id="sourceSelectBox" onclick="event.stopPropagation()"><div class="w-12 h-1.5 bg-gray-200 dark:bg-gray-600 rounded-full mx-auto mb-6"></div><h3 class="text-center text-lg font-bold text-gray-900 dark:text-white mb-6">写真を追加</h3><div class="space-y-3"><button onclick="InputApp.confirmSource('camera')" class="w-full py-4 bg-gray-50 dark:bg-gray-700 rounded-xl flex items-center justify-center gap-3 font-bold text-gray-800 dark:text-white"><i class="ph-bold ph-camera text-xl text-corporate-500"></i> カメラ</button><button onclick="InputApp.confirmSource('gallery')" class="w-full py-4 bg-gray-50 dark:bg-gray-700 rounded-xl flex items-center justify-center gap-3 font-bold text-gray-800 dark:text-white"><i class="ph-bold ph-image text-xl text-purple-500"></i> ギャラリー</button><button onclick="InputApp.closeSourceSelect()" class="w-full py-4 mt-2 text-gray-400 font-bold">キャンセル</button></div></div></div>
+    <div id="qr-overlay" class="fixed inset-0 z-[9999] bg-black hidden flex-col"><div class="absolute top-0 left-0 w-full p-6 flex justify-end z-10"><button onclick="InputApp.stopQRScanner()" class="w-10 h-10 bg-black/50 text-white rounded-full flex items-center justify-center backdrop-blur-md"><i class="ph-bold ph-x text-xl"></i></button></div><div class="flex-1 relative flex items-center justify-center overflow-hidden"><video id="qr-video" class="absolute inset-0 w-full h-full object-cover"></video><div class="w-64 h-64 border-2 border-corporate-500 rounded-3xl relative z-10 flex items-center justify-center"><div class="w-full h-0.5 bg-corporate-500/50 absolute top-1/2 animate-pulse"></div></div><div class="absolute bottom-20 text-white text-sm font-bold bg-black/50 px-4 py-2 rounded-full backdrop-blur">QRコードを枠に合わせてください</div></div><canvas id="qr-canvas" class="hidden"></canvas></div>
+    <div id="drawingOverlay" class="fixed inset-0 bg-gray-900 z-[6000] hidden flex-col"><div class="flex justify-between items-center px-4 py-3 bg-gray-900 text-white shrink-0 border-b border-gray-800"><button onclick="InputApp.closeDrawing()" class="text-gray-400 font-bold text-sm">キャンセル</button><span class="font-bold">写真編集</span><button onclick="InputApp.saveDrawing()" class="text-corporate-400 font-bold text-sm">保存</button></div><div class="flex-1 relative bg-black flex items-center justify-center overflow-hidden touch-none" id="canvas-container"><canvas id="drawCanvas" class="max-w-full max-h-full object-contain"></canvas></div><div class="px-4 py-4 bg-gray-900 text-white shrink-0 flex flex-col gap-4 pb-safe"><div class="flex justify-center gap-4 border-b border-gray-800 pb-4"><button onclick="InputApp.setTool('pen')" id="tool-pen" class="tool-btn w-10 h-10 rounded-xl bg-gray-700 text-white flex items-center justify-center ring-2 ring-corporate-500"><i class="ph-bold ph-pencil-simple text-xl"></i></button><button onclick="InputApp.setTool('rect')" id="tool-rect" class="tool-btn w-10 h-10 rounded-xl bg-gray-800 text-gray-400 flex items-center justify-center"><i class="ph-bold ph-square text-xl"></i></button><button onclick="InputApp.setTool('circle')" id="tool-circle" class="tool-btn w-10 h-10 rounded-xl bg-gray-800 text-gray-400 flex items-center justify-center"><i class="ph-bold ph-circle text-xl"></i></button></div><div class="flex justify-center gap-6 items-center"><button onclick="InputApp.setPenColor('red')" id="color-red" class="w-8 h-8 rounded-full bg-red-500 border-2 border-white ring-2 ring-red-500/50 transition-transform active:scale-90"></button><button onclick="InputApp.setPenColor('yellow')" id="color-yellow" class="w-8 h-8 rounded-full bg-yellow-400 border-2 border-transparent opacity-50 transition-transform active:scale-90"></button><div class="w-px h-8 bg-gray-700 mx-2"></div><button onclick="InputApp.undoDrawing()" class="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center border border-gray-700 active:bg-gray-700"><i class="ph-bold ph-arrow-u-up-left text-lg"></i></button><button onclick="InputApp.clearCanvas()" class="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center border border-gray-700 active:bg-gray-700"><i class="ph-bold ph-trash text-lg"></i></button></div></div></div>
+    <div id="delete-modal" class="fixed inset-0 z-[10000] hidden flex items-center justify-center bg-gray-900/50 backdrop-blur-sm transition-opacity opacity-0"><div class="bg-white dark:bg-gray-800 w-[90%] max-w-sm rounded-2xl p-6 shadow-xl transform scale-95 transition-all"><div class="flex flex-col items-center text-center"><div class="w-12 h-12 rounded-full bg-red-50 dark:bg-red-900/30 text-red-500 flex items-center justify-center mb-4"><i class="ph-fill ph-trash text-2xl"></i></div><h3 class="text-lg font-bold text-gray-900 dark:text-white mb-2">削除しますか？</h3><p class="text-sm text-gray-500 dark:text-gray-400 mb-6">この操作は取り消せません。</p><div class="flex gap-3 w-full"><button onclick="InputApp.closeDeleteModal()" class="flex-1 py-2.5 rounded-lg font-medium text-gray-600 bg-gray-100 dark:bg-gray-700 dark:text-gray-300">キャンセル</button><button onclick="InputApp.confirmDelete()" class="flex-1 py-2.5 rounded-lg font-medium text-white bg-red-500 hover:bg-red-600">削除する</button></div></div></div></div>
+    <div id="custom-alert-modal" class="fixed inset-0 z-[11000] hidden flex items-center justify-center bg-gray-900/50 backdrop-blur-sm transition-opacity opacity-0"><div class="bg-white dark:bg-gray-800 w-[85%] max-w-[320px] rounded-2xl p-6 shadow-xl transform scale-95 transition-all relative overflow-hidden"><div class="absolute top-0 left-0 w-full h-1 bg-red-500"></div><div class="flex flex-col items-center text-center mb-5 mt-2"><div class="text-red-500 mb-2"><i class="ph-fill ph-warning-octagon text-4xl"></i></div><h3 class="text-base font-bold text-gray-900 dark:text-white">入力エラー</h3><p class="text-xs text-gray-500 mt-1">必須項目が不足しています</p></div><div class="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-3 mb-5 border border-gray-100 dark:border-gray-700"><ul id="custom-alert-list" class="space-y-1 text-xs"></ul></div><button onclick="InputApp.closeCustomAlert()" class="w-full py-2.5 rounded-lg font-bold text-white bg-gray-800 hover:bg-gray-900 dark:bg-gray-700 dark:hover:bg-gray-600">確認して修正</button></div></div>
 
     <script>
-        // 🚀 1. 포트폴리오용 가짜 데이터 (50개 원본 데이터 일부 + 확장 가능)
+        // ★ MOCK_DATA & UI Control ★
         let MOCK_DATA = [
-            { id: '1', date: '2026-01-08', location: '工具棚 A-01', name: 'インパクトドライバー', email: 'staff1@example.com', dept: '製造部', qty: 3, photo1: 'https://placehold.co/300/0ea5e9/white?text=Tool', photo2: '', photo3: '' },
-            { id: '2', date: '2026-01-08', location: '備品ロッカー B', name: '安全靴 (26.5cm)', email: 'staff2@example.com', dept: '資材課', qty: 12, photo1: '', photo2: '', photo3: '' },
-            { id: '3', date: '2026-01-07', location: '消耗品棚 C-3', name: '防塵マスク (N95)', email: 'staff3@example.com', dept: '安全管理', qty: 45, photo1: '', photo2: '', photo3: '' },
-            { id: '4', date: '2026-01-07', location: '事務室棚', name: 'A4コピー用紙', email: 'admin@example.com', dept: '総務部', qty: 8, photo1: '', photo2: '', photo3: '' },
-            { id: '5', date: '2026-01-06', location: '入り口倉庫', name: 'アルコール消毒液', email: 'admin@example.com', dept: '総務部', qty: 2, photo1: '', photo2: '', photo3: '' },
-            { id: '6', date: '2026-01-06', location: '消耗品棚 C-1', name: '軍手 (滑り止め付)', email: 'staff1@example.com', dept: '製造部', qty: 120, photo1: '', photo2: '', photo3: '' },
-            { id: '7', date: '2026-01-05', location: '工具棚 A-02', name: '六角レンチセット', email: 'staff1@example.com', dept: '製造部', qty: 5, photo1: '', photo2: '', photo3: '' },
-            { id: '8', date: '2026-01-05', location: '出荷エリア', name: '梱包用テープ', email: 'staff4@example.com', dept: '物流課', qty: 30, photo1: '', photo2: '', photo3: '' },
-            { id: '9', date: '2026-01-04', location: '備品ロッカー A', name: 'ヘルメット (白)', email: 'staff3@example.com', dept: '安全管理', qty: 15, photo1: '', photo2: '', photo3: '' },
-            { id: '10', date: '2026-01-04', location: 'サーバー室', name: '作業用タブレット', email: 'it_admin@example.com', dept: 'IT推進室', qty: 4, photo1: '', photo2: '', photo3: '' }
+            { id: '1', date: '2026-02-25', location: '棚A-01', name: 'インパクトドライバー', email: 'staff1@example.com', dept: '製造部', qty: 5, photo1: 'https://placehold.co/300/0ea5e9/white?text=Tool', photo2: '', photo3: '' },
+            { id: '2', date: '2026-02-24', location: '備品ロッカー B', name: '安全靴 (26.5cm)', email: 'staff2@example.com', dept: '資材課', qty: 15, photo1: '', photo2: '', photo3: '' },
+            { id: '3', date: '2026-02-23', location: '消耗品棚 C-3', name: '防塵マスク', email: 'staff3@example.com', dept: '安全管理', qty: 30, photo1: '', photo2: '', photo3: '' },
+            { id: '4', date: '2026-02-22', location: '事務室', name: 'A4コピー用紙', email: 'admin@example.com', dept: '総務部', qty: 10, photo1: '', photo2: '', photo3: '' },
+            { id: '5', date: '2026-02-21', location: '棚A-02', name: '六角レンチセット', email: 'staff1@example.com', dept: '製造部', qty: 3, photo1: '', photo2: '', photo3: '' }
         ];
-        let MOCK_MASTER = [
-            { name: 'インパクトドライバー', email: 'staff1@example.com', dept: '製造部' },
-            { name: '安全靴 (26.5cm)', email: 'staff2@example.com', dept: '資材課' },
-            { name: '防塵マスク (N95)', email: 'staff3@example.com', dept: '安全管理' }
-        ];
+        let MOCK_MASTER = [{ name: 'インパクトドライバー', dept: '製造部' }, { name: '安全靴', dept: '資材課' }, { name: '防塵マスク', dept: '安全管理' }];
 
-        // 🎨 2. 테마 & 애니메이션 제어
+        // 🟢 TOAST NOTIFICATION 기능 추가 (alert 대체)
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            const icon = type === 'success' ? '<i class="ph-fill ph-check-circle text-emerald-500"></i>' : '<i class="ph-fill ph-warning-circle text-red-500"></i>';
+            toast.className = `flex items-center gap-3 px-4 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-lg rounded-lg text-sm font-bold text-gray-800 dark:text-white animate-slide-up transition-all`;
+            toast.innerHTML = `${icon} ${message}`;
+            container.appendChild(toast);
+            setTimeout(() => { toast.style.opacity = '0'; toast.style.transform = 'translateY(10px)'; setTimeout(() => toast.remove(), 300); }, 3000);
+        }
+
+        // Theme
         window.ThemeManager = {
             init: function() {
                 const isDark = localStorage.getItem('theme') === 'dark' || (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
@@ -469,7 +294,7 @@
                 const isDark = document.documentElement.classList.toggle('dark');
                 localStorage.setItem('theme', isDark ? 'dark' : 'light');
                 this.updateIcon();
-                if(typeof DashboardApp !== 'undefined' && DashboardApp.renderCharts) DashboardApp.renderCharts();
+                if(typeof DashboardApp !== 'undefined') DashboardApp.renderCharts();
             },
             updateIcon: function() {
                 const isDark = document.documentElement.classList.contains('dark');
@@ -478,11 +303,11 @@
         };
         window.ThemeManager.init();
 
+        // Intro
         const IntroAnim = (() => {
             let frameId, canvas, ctx, w, h, particles = [];
             function init() {
-                canvas = document.getElementById('intro-canvas'); if (!canvas) return;
-                ctx = canvas.getContext('2d');
+                canvas = document.getElementById('intro-canvas'); if (!canvas) return; ctx = canvas.getContext('2d');
                 const resize = () => { w = canvas.width = window.innerWidth; h = canvas.height = window.innerHeight; };
                 window.addEventListener('resize', resize); resize();
                 for (let i = 0; i < 40; i++) particles.push({ x: Math.random()*w, y: Math.random()*h, vx: (Math.random()-0.5), vy: (Math.random()-0.5), size: Math.random()*2+1 });
@@ -491,53 +316,36 @@
             function animate() {
                 const screen = document.getElementById('intro-screen');
                 if (!screen || screen.classList.contains('fade-out')) { cancelAnimationFrame(frameId); return; }
-                ctx.clearRect(0, 0, w, h);
-                const isDark = document.documentElement.classList.contains('dark');
-                ctx.fillStyle = isDark ? 'rgba(255,255,255,0.4)' : 'rgba(14,165,233,0.4)';
-                ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(14,165,233,0.08)';
-                particles.forEach(p => {
-                    p.x += p.vx; p.y += p.vy; if (p.x < 0 || p.x > w) p.vx *= -1; if (p.y < 0 || p.y > h) p.vy *= -1;
-                    ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill();
-                });
-                for(let i=0; i<particles.length; i++){
-                    for(let j=i+1; j<particles.length; j++){
-                        const dist = Math.hypot(particles[i].x - particles[j].x, particles[i].y - particles[j].y);
-                        if(dist < 120) { ctx.beginPath(); ctx.moveTo(particles[i].x, particles[i].y); ctx.lineTo(particles[j].x, particles[j].y); ctx.stroke(); }
-                    }
-                }
+                ctx.clearRect(0, 0, w, h); const isDark = document.documentElement.classList.contains('dark');
+                ctx.fillStyle = isDark ? 'rgba(255,255,255,0.4)' : 'rgba(14,165,233,0.4)'; ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(14,165,233,0.08)';
+                particles.forEach(p => { p.x += p.vx; p.y += p.vy; if (p.x < 0 || p.x > w) p.vx *= -1; if (p.y < 0 || p.y > h) p.vy *= -1; ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill(); });
+                for(let i=0; i<particles.length; i++){ for(let j=i+1; j<particles.length; j++){ if(Math.hypot(particles[i].x - particles[j].x, particles[i].y - particles[j].y) < 120) { ctx.beginPath(); ctx.moveTo(particles[i].x, particles[i].y); ctx.lineTo(particles[j].x, particles[j].y); ctx.stroke(); } } }
                 frameId = requestAnimationFrame(animate);
             }
             return { start: init, stop: () => { const el = document.getElementById('intro-screen'); if(el) el.classList.add('fade-out'); } };
         })();
         document.addEventListener('DOMContentLoaded', IntroAnim.start);
 
-        // 🔀 3. 라우터 (페이지 전환)
+        // Router
         const AppRouter = (() => {
             function init() { switchRoute('dashboard'); }
             function switchRoute(route) {
                 const spinner = document.getElementById('loadingSpinner'); if (spinner) spinner.classList.remove('hidden');
-                
                 setTimeout(() => {
                     ['view-dashboard', 'view-input'].forEach(id => { const el = document.getElementById(id); if(el) el.classList.add('hidden'); });
                     document.querySelectorAll('.nav-link, .mobile-tab').forEach(el => el.classList.remove('active'));
-                    
                     const deskNav = document.getElementById('nav-' + route); if(deskNav) deskNav.classList.add('active');
                     const mobNav = document.getElementById('mobile-nav-' + route); if(mobNav) mobNav.classList.add('active');
-                    
                     const view = document.getElementById('view-' + route);
-                    if(view) {
-                        view.classList.remove('hidden');
-                        if(route === 'dashboard' && DashboardApp.init) DashboardApp.init();
-                        if(route === 'input' && InputApp.init) InputApp.init();
-                    }
+                    if(view) { view.classList.remove('hidden'); if(route === 'dashboard') DashboardApp.init(); if(route === 'input') InputApp.init(); }
                     window.scrollTo(0,0);
                     if (spinner) spinner.classList.add('hidden');
-                }, 100); // 가짜 딜레이
+                }, 100);
             }
             return { init, switch: switchRoute };
         })();
 
-        // 📊 4. 대시보드 (차트 및 요약)
+        // 📊 DASHBOARD (감소 트렌드 & ROI 적용)
         const DashboardApp = (() => {
             let deptChart, trendChart;
             function init() { fetchData(); }
@@ -546,28 +354,28 @@
                 setTimeout(() => {
                     if (document.getElementById('intro-screen')) IntroAnim.stop();
                     renderKPIs(); renderWarning(); renderList(); renderCharts();
-                    populateMonthFilter();
+                    document.getElementById('monthFilter').innerHTML = '<option value="2026-02">2026/02</option><option value="2026-01">2026/01</option>';
                     if(spinner) spinner.classList.add('hidden');
                 }, 300);
             }
-            function populateMonthFilter() {
-                const el = document.getElementById('monthFilter');
-                if(el.options.length === 0) el.innerHTML = '<option value="2026-01">2026/01</option><option value="2025-12">2025/12</option>';
-            }
+
             function renderKPIs() {
-                const total = MOCK_DATA.reduce((sum, item) => sum + parseInt(item.qty||0), 0);
-                const locs = new Set(MOCK_DATA.map(i => i.location)).size;
-                const depts = new Set(MOCK_DATA.map(i => i.dept)).size;
+                const totalQty = MOCK_DATA.reduce((sum, item) => sum + parseInt(item.qty||0), 0);
+                // 🟢 예상 손실 비용 산출 (DX 비즈니스 관점) : 개당 임의 가치 1,500엔 책정
+                const estimatedLoss = (totalQty * 1500).toLocaleString(); 
+                
                 const kpis = [
-                    { label: '総在庫数', val: total, unit: '個', icon: 'ph-stack', color: 'text-corporate-600', bg: 'bg-corporate-50' },
-                    { label: '前月比', val: '+15', unit: '%', icon: 'ph-trend-up', color: 'text-emerald-500', bg: 'bg-emerald-50' },
-                    { label: '保管場所', val: locs, unit: '箇所', icon: 'ph-map-pin', color: 'text-orange-500', bg: 'bg-orange-50' },
-                    { label: '管理部署', val: depts, unit: '部署', icon: 'ph-buildings', color: 'text-purple-500', bg: 'bg-purple-50' }
+                    { label: '滞留・廃棄リスク', val: totalQty, unit: '個', icon: 'ph-stack', color: 'text-corporate-600', bg: 'bg-corporate-50' },
+                    // 🟢 감소 트렌드 (-25%) 및 긍정적 지표(초록색) 사용
+                    { label: '前月比', val: '-25', unit: '%', icon: 'ph-trend-down', color: 'text-emerald-500', bg: 'bg-emerald-50' },
+                    // 🟢 비용 절감 지표 추가
+                    { label: '推定ロス金額', val: estimatedLoss, unit: '円', icon: 'ph-currency-jpy', color: 'text-orange-500', bg: 'bg-orange-50' },
+                    { label: 'リスク発生場所', val: new Set(MOCK_DATA.map(i => i.location)).size, unit: '箇所', icon: 'ph-map-pin', color: 'text-purple-500', bg: 'bg-purple-50' }
                 ];
                 document.getElementById('kpiGrid').innerHTML = kpis.map(k => `
                     <div class="card p-4 relative overflow-hidden group">
                         <div class="absolute -right-2 -bottom-2 opacity-10 text-5xl group-hover:scale-110 transition-transform"><i class="ph-fill ${k.icon} ${k.color}"></i></div>
-                        <p class="text-[10px] font-bold text-gray-400 uppercase mb-1">${k.label}</p>
+                        <p class="text-[10px] font-bold text-gray-500 uppercase mb-1">${k.label}</p>
                         <div class="flex items-baseline gap-1 relative z-10">
                             <p class="text-2xl font-bold text-gray-800 dark:text-white leading-none">${k.val}</p>
                             <span class="text-xs font-medium text-gray-500">${k.unit}</span>
@@ -575,62 +383,72 @@
                     </div>
                 `).join('');
                 document.getElementById('summaryList').innerHTML = `
-                    <li><span class="font-bold text-gray-800 dark:text-white">総数 ${total}個</span>。前月比増加。</li>
-                    <li><span class="font-bold text-gray-800 dark:text-white">製造部</span>が最多管理。</li>
+                    <li>システム導入後、滞留在庫が<span class="font-bold text-emerald-500">約25%減少</span>しています。</li>
+                    <li><span class="font-bold text-gray-800 dark:text-white">推定 ${estimatedLoss}円</span> のロス削減効果が見込まれます。</li>
                 `;
             }
+
             function renderWarning() {
-                const threshold = parseInt(document.getElementById('warningThreshold').value) || 20;
+                const threshold = parseInt(document.getElementById('warningThreshold').value) || 15;
                 const warnings = MOCK_DATA.filter(i => parseInt(i.qty) >= threshold).sort((a,b)=> b.qty - a.qty);
                 const container = document.getElementById('warningContainer');
                 if(warnings.length === 0) { container.style.display = 'none'; return; }
                 container.style.display = 'block';
-                document.getElementById('warningTableBody').innerHTML = warnings.map(i => `
-                    <tr>
-                        <td class="py-2 px-1 font-medium text-gray-800 dark:text-gray-200 truncate max-w-[120px]">${i.name}</td>
-                        <td class="py-2 px-1 text-right font-bold text-red-500">${i.qty}</td>
-                    </tr>
-                `).join('');
+                document.getElementById('warningTableBody').innerHTML = warnings.map(i => `<tr><td class="py-2 px-1 font-medium text-gray-800 dark:text-gray-200 truncate max-w-[120px]">${i.name}</td><td class="py-2 px-1 text-right font-bold text-red-500">${i.qty}</td></tr>`).join('');
             }
+
             function renderList() {
                 const container = document.getElementById('dataCardsContainer');
                 const grouped = MOCK_DATA.reduce((acc, item) => { acc[item.location] = acc[item.location] || []; acc[item.location].push(item); return acc; }, {});
                 container.innerHTML = Object.keys(grouped).sort().map(loc => {
                     const items = grouped[loc]; const qty = items.reduce((s, i) => s + parseInt(i.qty), 0);
-                    return `
-                        <div onclick="DashboardApp.openLocationDetail('${loc}')" class="border border-gray-200 dark:border-gray-700 rounded-lg p-3 cursor-pointer hover:border-corporate-500 bg-white dark:bg-gray-800 transition-all flex items-center gap-3">
-                            <div class="w-10 h-10 rounded-full bg-corporate-50 dark:bg-corporate-900/30 flex items-center justify-center text-corporate-500 shrink-0"><i class="ph-fill ph-map-pin text-xl"></i></div>
-                            <div class="flex-1 min-w-0">
-                                <h3 class="font-bold text-sm text-gray-900 dark:text-white truncate">${loc}</h3>
-                                <p class="text-[10px] text-gray-500">${items.length} 種類</p>
-                            </div>
-                            <div class="text-right">
-                                <span class="block text-sm font-black text-gray-800 dark:text-white leading-none">${qty}</span>
-                                <span class="text-[9px] text-gray-400">個</span>
-                            </div>
-                        </div>
-                    `;
+                    return `<div onclick="DashboardApp.openLocationDetail('${loc}')" class="border border-gray-200 dark:border-gray-700 rounded-lg p-3 cursor-pointer hover:border-corporate-500 bg-white dark:bg-gray-800 transition-all flex items-center gap-3"><div class="w-10 h-10 rounded-full bg-corporate-50 dark:bg-corporate-900/30 flex items-center justify-center text-corporate-500 shrink-0"><i class="ph-fill ph-map-pin text-xl"></i></div><div class="flex-1 min-w-0"><h3 class="font-bold text-sm text-gray-900 dark:text-white truncate">${loc}</h3><p class="text-[10px] text-gray-500">${items.length} 種類</p></div><div class="text-right"><span class="block text-sm font-black text-gray-800 dark:text-white leading-none">${qty}</span><span class="text-[9px] text-gray-400">個</span></div></div>`;
                 }).join('');
             }
+
             function renderCharts() {
                 const isDark = document.documentElement.classList.contains('dark');
                 const textColor = isDark ? '#9ca3af' : '#6b7280'; const gridColor = isDark ? '#374151' : '#f3f4f6';
                 Chart.defaults.color = textColor; Chart.defaults.font.family = "'Inter', sans-serif";
-                const deptData = MOCK_DATA.reduce((acc, i) => { acc[i.dept] = (acc[i.dept]||0) + parseInt(i.qty); return acc; }, {});
                 
+                // 🟢 차트 1: 우하향 감소 트렌드 적용
+                if(trendChart) trendChart.destroy();
+                trendChart = new Chart(document.getElementById('comparisonChart'), {
+                    type: 'line',
+                    data: { 
+                        labels: ['11月','12月','1月','2月(現在)'], 
+                        // 점점 줄어드는 데이터로 시스템 도입 성과를 보여줌
+                        datasets: [{ data: [240, 180, 150, 63], borderColor: '#10b981', backgroundColor: 'rgba(16, 185, 129, 0.1)', fill: true, tension: 0.4, borderWidth: 3 }] 
+                    },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: {display: false}, datalabels: {display: false} }, scales: { x: { grid: {display: false} }, y: { beginAtZero: true, grid: {color: gridColor}, border: {display: false} } } }
+                });
+
+                const deptData = MOCK_DATA.reduce((acc, i) => { acc[i.dept] = (acc[i.dept]||0) + parseInt(i.qty); return acc; }, {});
                 if(deptChart) deptChart.destroy();
                 deptChart = new Chart(document.getElementById('departmentChart'), {
                     type: 'bar',
                     data: { labels: Object.keys(deptData), datasets: [{ data: Object.values(deptData), backgroundColor: '#0ea5e9', borderRadius: 4 }] },
-                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: {display: false}, datalabels: { anchor:'end', align:'top', font:{weight:'bold'} } }, scales: { x: { grid: {display: false} }, y: { beginAtZero: true, grace: '10%', grid: {color: gridColor}, border: {display: false} } } }
-                });
-                if(trendChart) trendChart.destroy();
-                trendChart = new Chart(document.getElementById('comparisonChart'), {
-                    type: 'line',
-                    data: { labels: ['10月','11月','12月','1月'], datasets: [{ data: [110, 150, 180, 240], borderColor: '#0369a1', backgroundColor: 'rgba(3,105,161,0.1)', fill: true, tension: 0.4, borderWidth: 2 }] },
-                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: {display: false}, datalabels: {display: false} }, scales: { x: { grid: {display: false} }, y: { beginAtZero: true, grid: {color: gridColor}, border: {display: false} } } }
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: {display: false}, datalabels: { anchor:'end', align:'top', font:{weight:'bold'} } }, scales: { x: { grid: {display: false} }, y: { beginAtZero: true, grace: '15%', grid: {color: gridColor}, border: {display: false} } } }
                 });
             }
+
+            // 🟢 CSV 다운로드 (Mock) 추가
+            function downloadCSV() {
+                const spinner = document.getElementById('loadingSpinner'); spinner.classList.remove('hidden');
+                setTimeout(() => {
+                    spinner.classList.add('hidden');
+                    const headers = "日付,名前,部署,場所,数量\n";
+                    const rows = MOCK_DATA.map(i => `${i.date},${i.name},${i.dept},${i.location},${i.qty}`).join("\n");
+                    const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + headers + rows;
+                    const link = document.createElement("a");
+                    link.setAttribute("href", encodeURI(csvContent));
+                    link.setAttribute("download", `inventory_report_${new Date().toISOString().slice(0,10)}.csv`);
+                    document.body.appendChild(link);
+                    link.click(); document.body.removeChild(link);
+                    showToast('CSVの出力が完了しました');
+                }, 500);
+            }
+
             function openLocationDetail(loc) {
                 const items = MOCK_DATA.filter(i => i.location === loc).sort((a,b)=> b.qty - a.qty);
                 document.getElementById('dash-panel-title').innerText = loc;
@@ -638,19 +456,16 @@
                     const hasPhoto = i.photo1 || i.photo2 || i.photo3;
                     let photoIcon = `<div class="w-10 h-10 rounded-md bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-gray-400"><i class="ph-duotone ph-cube text-lg"></i></div>`;
                     if (hasPhoto && i.photo1) photoIcon = `<img src="${i.photo1}" class="w-10 h-10 rounded-md object-cover border border-gray-200 dark:border-gray-600">`;
-                    return `<div class="card p-3 flex items-center gap-3 ${hasPhoto?'cursor-pointer hover:border-corporate-400':''}" ${hasPhoto?`onclick="InputApp.openGallery('${i.id}')"`:''}>
-                        ${photoIcon}
-                        <div class="flex-1 min-w-0"><div class="text-sm font-bold text-gray-800 dark:text-white truncate">${i.name}</div><div class="text-[10px] text-gray-500">${i.dept}</div></div>
-                        <div class="text-right"><span class="text-base font-black text-gray-800 dark:text-white">${i.qty}</span><span class="text-[9px] text-gray-400 ml-0.5">個</span></div>
-                    </div>`;
+                    return `<div class="card p-3 flex items-center gap-3 ${hasPhoto?'cursor-pointer hover:border-corporate-400':''}" ${hasPhoto?`onclick="InputApp.openGallery('${i.id}')"`:''}>${photoIcon}<div class="flex-1 min-w-0"><div class="text-sm font-bold text-gray-800 dark:text-white truncate">${i.name}</div><div class="text-[10px] text-gray-500">${i.dept}</div></div><div class="text-right"><span class="text-base font-black text-gray-800 dark:text-white">${i.qty}</span><span class="text-[9px] text-gray-400 ml-0.5">個</span></div></div>`;
                 }).join('');
                 document.getElementById('form-overlay').classList.add('open'); document.getElementById('dashboard-panel').classList.add('open');
             }
             function closeLocationDetail() { document.getElementById('form-overlay').classList.remove('open'); document.getElementById('dashboard-panel').classList.remove('open'); }
-            return { init, fetchData, renderWarning, renderCharts, openLocationDetail, closeLocationDetail };
+            
+            return { init, fetchData, renderWarning, renderCharts, openLocationDetail, closeLocationDetail, downloadCSV };
         })();
 
-        // 📝 5. 입력 & 관리 (오리지널 그룹핑 리스트, Draw, QR 포함)
+        // 📝 5. INPUT & MANAGEMENT
         const InputApp = (() => {
             let editedFiles = { file1: null, file2: null, file3: null };
             let currentTargetFileId = null, pendingDeleteId = null, videoStream = null, isScanning = false;
@@ -658,71 +473,34 @@
             
             function init() { renderGroupedList(); }
 
-            // 날짜/장소별 그룹핑 리스트 완벽 복원 + B2B UI 적용
             function renderGroupedList(query = '') {
                 const container = document.getElementById('input-list-container');
                 let data = [...MOCK_DATA].sort((a, b) => new Date(b.date) - new Date(a.date));
-                if(query) {
-                    const lower = query.toLowerCase();
-                    data = data.filter(i => i.name.toLowerCase().includes(lower) || i.location.toLowerCase().includes(lower));
-                }
-                
+                if(query) data = data.filter(i => i.name.toLowerCase().includes(query.toLowerCase()) || i.location.toLowerCase().includes(query.toLowerCase()));
                 if(data.length === 0) { container.innerHTML = `<div class="p-10 text-center text-gray-400 text-sm">データがありません</div>`; return; }
 
                 const groupedByDate = data.reduce((acc, item) => { const d = item.date || '日付なし'; acc[d] = acc[d] || []; acc[d].push(item); return acc; }, {});
-                
                 let html = '';
                 Object.keys(groupedByDate).sort().reverse().forEach(date => {
                     const dateItems = groupedByDate[date];
                     const groupedByLoc = dateItems.reduce((acc, item) => { const l = item.location || '場所未定'; acc[l] = acc[l] || []; acc[l].push(item); return acc; }, {});
-                    
                     let locHtml = '';
                     Object.keys(groupedByLoc).sort().forEach(loc => {
                         const locItems = groupedByLoc[loc].sort((a,b) => b.qty - a.qty);
                         const itemsHtml = locItems.map(item => `
                             <div class="flex items-center gap-3 p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm hover:border-corporate-400 transition-colors group">
-                                <div class="w-12 h-10 bg-gray-50 dark:bg-gray-700 rounded flex flex-col items-center justify-center shrink-0 border border-gray-100 dark:border-gray-600">
-                                    <span class="text-sm font-black text-corporate-600 dark:text-corporate-400 leading-none">${item.qty}</span>
-                                    <span class="text-[8px] text-gray-400 font-bold mt-0.5">数量</span>
-                                </div>
-                                <div class="flex-1 min-w-0 cursor-pointer" onclick="InputApp.openPanel('detail', '${item.id}')">
-                                    <div class="text-sm font-bold text-gray-900 dark:text-white truncate">${item.name}</div>
-                                    <div class="text-[10px] text-gray-500 truncate mt-0.5">${item.dept}</div>
-                                </div>
-                                <div class="flex items-center gap-1 shrink-0 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                                    <button onclick="InputApp.openPanel('edit', '${item.id}')" class="w-8 h-8 flex items-center justify-center rounded text-gray-400 hover:text-corporate-600 hover:bg-corporate-50"><i class="ph-bold ph-pencil-simple text-base"></i></button>
-                                    <button onclick="InputApp.requestDelete('${item.id}')" class="w-8 h-8 flex items-center justify-center rounded text-gray-400 hover:text-red-500 hover:bg-red-50"><i class="ph-bold ph-trash text-base"></i></button>
-                                </div>
-                            </div>
-                        `).join('');
-
-                        locHtml += `
-                            <details open class="group/loc ml-2 mt-2">
-                                <summary class="flex items-center gap-2 cursor-pointer list-none mb-2 text-sm text-gray-600 dark:text-gray-300 font-medium">
-                                    <i class="ph-fill ph-map-pin text-corporate-500"></i> ${loc} 
-                                    <span class="bg-gray-100 dark:bg-gray-700 text-[10px] px-1.5 py-0.5 rounded-full font-bold">${locItems.length}</span>
-                                    <i class="ph-bold ph-caret-down text-xs text-gray-400 transition-transform group-open/loc:rotate-180 ml-auto mr-2"></i>
-                                </summary>
-                                <div class="space-y-2 pl-2 border-l-2 border-gray-100 dark:border-gray-700 ml-1.5 mb-4">${itemsHtml}</div>
-                            </details>
-                        `;
+                                <div class="w-12 h-10 bg-gray-50 dark:bg-gray-700 rounded flex flex-col items-center justify-center shrink-0 border border-gray-100 dark:border-gray-600"><span class="text-sm font-black text-corporate-600 dark:text-corporate-400 leading-none">${item.qty}</span><span class="text-[8px] text-gray-400 font-bold mt-0.5">数量</span></div>
+                                <div class="flex-1 min-w-0 cursor-pointer" onclick="InputApp.openPanel('detail', '${item.id}')"><div class="text-sm font-bold text-gray-900 dark:text-white truncate">${item.name}</div><div class="text-[10px] text-gray-500 truncate mt-0.5">${item.dept}</div></div>
+                                <div class="flex items-center gap-1 shrink-0 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"><button onclick="InputApp.openPanel('edit', '${item.id}')" class="w-8 h-8 flex items-center justify-center rounded text-gray-400 hover:text-corporate-600 hover:bg-corporate-50"><i class="ph-bold ph-pencil-simple text-base"></i></button><button onclick="InputApp.requestDelete('${item.id}')" class="w-8 h-8 flex items-center justify-center rounded text-gray-400 hover:text-red-500 hover:bg-red-50"><i class="ph-bold ph-trash text-base"></i></button></div>
+                            </div>`).join('');
+                        locHtml += `<details open class="group/loc ml-2 mt-2"><summary class="flex items-center gap-2 cursor-pointer list-none mb-2 text-sm text-gray-600 dark:text-gray-300 font-medium"><i class="ph-fill ph-map-pin text-corporate-500"></i> ${loc} <span class="bg-gray-100 dark:bg-gray-700 text-[10px] px-1.5 py-0.5 rounded-full font-bold">${locItems.length}</span><i class="ph-bold ph-caret-down text-xs text-gray-400 transition-transform group-open/loc:rotate-180 ml-auto mr-2"></i></summary><div class="space-y-2 pl-2 border-l-2 border-gray-100 dark:border-gray-700 ml-1.5 mb-4">${itemsHtml}</div></details>`;
                     });
-
-                    html += `
-                        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden mb-4">
-                            <div class="px-4 py-3 bg-gray-50/80 dark:bg-gray-800/80 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-                                <h3 class="font-bold text-sm text-gray-800 dark:text-white"><i class="ph-bold ph-calendar-blank mr-1 text-gray-400"></i> ${date}</h3>
-                                <span class="bg-white dark:bg-gray-700 px-2 py-0.5 rounded text-xs font-bold text-gray-500 shadow-sm border border-gray-200 dark:border-gray-600">${dateItems.length}件</span>
-                            </div>
-                            <div class="p-2">${locHtml}</div>
-                        </div>
-                    `;
+                    html += `<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden mb-4"><div class="px-4 py-3 bg-gray-50/80 dark:bg-gray-800/80 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center"><h3 class="font-bold text-sm text-gray-800 dark:text-white"><i class="ph-bold ph-calendar-blank mr-1 text-gray-400"></i> ${date}</h3><span class="bg-white dark:bg-gray-700 px-2 py-0.5 rounded text-xs font-bold text-gray-500 shadow-sm border border-gray-200 dark:border-gray-600">${dateItems.length}件</span></div><div class="p-2">${locHtml}</div></div>`;
                 });
                 container.innerHTML = html;
             }
             function filterList(q) { renderGroupedList(q); }
 
-            // Panel / Form Control
             function openPanel(mode, id) {
                 const form = document.getElementById('dataForm'), detail = document.getElementById('detail-view'), footer = document.getElementById('form-footer'), btnEdit = document.getElementById('btn-edit-mode'), title = document.getElementById('panel-title');
                 form.reset(); document.getElementById('form-id').value = "";
@@ -732,69 +510,42 @@
 
                 if(mode === 'create') {
                     title.innerText = '新規登録';
-                    form.classList.remove('hidden'); footer.classList.remove('hidden');
-                    detail.classList.add('hidden'); btnEdit.classList.add('hidden');
+                    form.classList.remove('hidden'); footer.classList.remove('hidden'); detail.classList.add('hidden'); btnEdit.classList.add('hidden');
                     document.getElementById('form-date').value = new Date().toISOString().split('T')[0];
                 } else if(mode === 'edit') {
                     title.innerText = '内容の編集';
-                    form.classList.remove('hidden'); footer.classList.remove('hidden');
-                    detail.classList.add('hidden'); btnEdit.classList.add('hidden');
+                    form.classList.remove('hidden'); footer.classList.remove('hidden'); detail.classList.add('hidden'); btnEdit.classList.add('hidden');
                     const item = MOCK_DATA.find(i => i.id === id); if(item) fillForm(item);
                 } else {
                     title.innerText = '詳細情報';
-                    form.classList.add('hidden'); footer.classList.add('hidden');
-                    detail.classList.remove('hidden'); btnEdit.classList.remove('hidden');
+                    form.classList.add('hidden'); footer.classList.add('hidden'); detail.classList.remove('hidden'); btnEdit.classList.remove('hidden');
                     const item = MOCK_DATA.find(i => i.id === id);
                     if(item) {
-                        fillForm(item); // For edit transition
-                        document.getElementById('view-date').innerText = item.date;
-                        document.getElementById('view-name').innerText = item.name;
-                        document.getElementById('view-dept').innerText = item.dept || '-';
-                        document.getElementById('view-location').innerText = item.location || '-';
-                        document.getElementById('view-qty').innerText = item.qty;
+                        fillForm(item);
+                        document.getElementById('view-date').innerText = item.date; document.getElementById('view-name').innerText = item.name;
+                        document.getElementById('view-dept').innerText = item.dept || '-'; document.getElementById('view-location').innerText = item.location || '-'; document.getElementById('view-qty').innerText = item.qty;
                         const photos = [item.photo1, item.photo2, item.photo3].filter(Boolean);
                         document.getElementById('detail-photos').innerHTML = photos.length > 0 ? photos.map(p => `<img src="${p}" onclick="InputApp.openGallery('${item.id}')" class="w-full h-32 object-cover rounded-lg border border-gray-200 cursor-pointer shadow-sm">`).join('') : '<div class="col-span-2 text-center text-xs text-gray-400 py-6 border border-dashed rounded-lg border-gray-300">写真なし</div>';
                     }
                 }
                 document.getElementById('form-overlay').classList.add('open');
-                
-                // 모바일에서 패널이 슬라이드될 때 키보드 내리기
                 if(document.activeElement) document.activeElement.blur();
-                
-                // 패널 열릴 때 안쪽 DOM 요소들이 먼저 배치되게 delay
-                const panel = document.getElementById('form-panel');
-                panel.style.display = 'flex';
-                setTimeout(() => panel.classList.add('open'), 10);
+                const panel = document.getElementById('form-panel'); panel.style.display = 'flex'; setTimeout(() => panel.classList.add('open'), 10);
             }
-            function closePanel() {
-                document.getElementById('form-overlay').classList.remove('open');
-                document.getElementById('form-panel').classList.remove('open');
-            }
-            function enableEditMode() {
-                document.getElementById('panel-title').innerText = '内容の編集';
-                document.getElementById('detail-view').classList.add('hidden'); document.getElementById('btn-edit-mode').classList.add('hidden');
-                document.getElementById('dataForm').classList.remove('hidden'); document.getElementById('form-footer').classList.remove('hidden');
-            }
+            function closePanel() { document.getElementById('form-overlay').classList.remove('open'); document.getElementById('form-panel').classList.remove('open'); }
+            function enableEditMode() { document.getElementById('panel-title').innerText = '内容の編集'; document.getElementById('detail-view').classList.add('hidden'); document.getElementById('btn-edit-mode').classList.add('hidden'); document.getElementById('dataForm').classList.remove('hidden'); document.getElementById('form-footer').classList.remove('hidden'); }
             function fillForm(item) {
-                document.getElementById('form-id').value = item.id; document.getElementById('form-date').value = item.date;
-                document.getElementById('form-qty').value = item.qty; document.getElementById('form-name').value = item.name;
-                document.getElementById('form-dept').value = item.dept; document.getElementById('form-location').value = item.location;
+                document.getElementById('form-id').value = item.id; document.getElementById('form-date').value = item.date; document.getElementById('form-qty').value = item.qty; document.getElementById('form-name').value = item.name; document.getElementById('form-dept').value = item.dept; document.getElementById('form-location').value = item.location;
                 if(item.photo1) { document.getElementById('preview1').src = item.photo1; document.getElementById('preview1').classList.remove('hidden'); document.getElementById('btn-draw-file1').classList.remove('hidden'); }
             }
 
-            // Custom Alert (Validation)
             function showCustomAlert(missing) {
                 const modal = document.getElementById('custom-alert-modal'), list = document.getElementById('custom-alert-list');
                 list.innerHTML = missing.map(m => `<li class="flex items-center gap-2"><i class="ph-bold ph-x text-red-500"></i> ${m}</li>`).join('');
                 modal.classList.remove('hidden'); setTimeout(() => { modal.classList.remove('opacity-0'); modal.firstElementChild.classList.remove('scale-95'); modal.firstElementChild.classList.add('scale-100'); }, 10);
             }
-            function closeCustomAlert() {
-                const modal = document.getElementById('custom-alert-modal');
-                modal.classList.add('opacity-0'); modal.firstElementChild.classList.remove('scale-100'); modal.firstElementChild.classList.add('scale-95');
-                setTimeout(() => modal.classList.add('hidden'), 300);
-            }
+            function closeCustomAlert() { const modal = document.getElementById('custom-alert-modal'); modal.classList.add('opacity-0'); modal.firstElementChild.classList.remove('scale-100'); modal.firstElementChild.classList.add('scale-95'); setTimeout(() => modal.classList.add('hidden'), 300); }
 
-            // Data Submission
             function submitData() {
                 const required = [ {id:'form-date', label:'日付'}, {id:'form-name', label:'名前'}, {id:'form-location', label:'場所'}, {id:'form-qty', label:'数量'} ];
                 const missing = required.filter(f => !document.getElementById(f.id).value.trim()).map(f => f.label);
@@ -802,128 +553,51 @@
 
                 const spinner = document.getElementById('loadingSpinner'); spinner.classList.remove('hidden');
 
-                setTimeout(() => { // Mock API Delay
+                setTimeout(() => {
                     const id = document.getElementById('form-id').value;
-                    const newItem = {
-                        id: id || 'MOCK_' + Date.now(),
-                        date: document.getElementById('form-date').value,
-                        name: document.getElementById('form-name').value,
-                        dept: document.getElementById('form-dept').value || '-',
-                        location: document.getElementById('form-location').value || '-',
-                        qty: document.getElementById('form-qty').value,
-                        photo1: editedFiles['file1'] || document.getElementById('preview1').src || '',
-                        photo2: editedFiles['file2'] || document.getElementById('preview2').src || '',
-                        photo3: editedFiles['file3'] || document.getElementById('preview3').src || ''
-                    };
-
-                    if(id) { const idx = MOCK_DATA.findIndex(i => i.id === id); if(idx > -1) MOCK_DATA[idx] = newItem; } 
-                    else { MOCK_DATA.push(newItem); }
+                    const newItem = { id: id || 'MOCK_' + Date.now(), date: document.getElementById('form-date').value, name: document.getElementById('form-name').value, dept: document.getElementById('form-dept').value || '-', location: document.getElementById('form-location').value || '-', qty: document.getElementById('form-qty').value, photo1: editedFiles['file1'] || document.getElementById('preview1').src || '', photo2: editedFiles['file2'] || document.getElementById('preview2').src || '', photo3: editedFiles['file3'] || document.getElementById('preview3').src || '' };
+                    if(id) { const idx = MOCK_DATA.findIndex(i => i.id === id); if(idx > -1) MOCK_DATA[idx] = newItem; } else { MOCK_DATA.push(newItem); }
 
                     spinner.classList.add('hidden');
                     
+                    // 🟢 alert 대신 깔끔한 Toast 알림 호출
+                    showToast(id ? 'データを更新しました' : '新規データを登録しました');
+                    
                     if(document.getElementById('continuous-mode').checked && !id) {
-                        document.getElementById('form-name').value = ''; document.getElementById('form-qty').value = '';
-                        document.getElementById('form-name').focus();
+                        document.getElementById('form-name').value = ''; document.getElementById('form-qty').value = ''; document.getElementById('form-name').focus();
                         ['preview1', 'preview2', 'preview3'].forEach(pid => { const p = document.getElementById(pid); if(p){p.src=''; p.classList.add('hidden');}});
                         ['btn-draw-file1', 'btn-draw-file2', 'btn-draw-file3'].forEach(bid => { const b = document.getElementById(bid); if(b) b.classList.add('hidden'); });
                         editedFiles = { file1: null, file2: null, file3: null };
                         let countEl = document.getElementById('session-counter-display'); countEl.innerText = `今回: ${parseInt(countEl.innerText.replace(/[^0-9]/g, ''))+1}件`;
-                    } else {
-                        closePanel();
-                    }
+                    } else { closePanel(); }
+                    
                     renderGroupedList();
-                    if(typeof DashboardApp !== 'undefined' && DashboardApp.init) DashboardApp.init(); // Refresh Dashboard
+                    if(typeof DashboardApp !== 'undefined' && DashboardApp.init) DashboardApp.init();
                 }, 300);
             }
 
-            // Deletion
-            function requestDelete(id) {
-                pendingDeleteId = id; const modal = document.getElementById('delete-modal'); modal.classList.remove('hidden');
-                setTimeout(() => { modal.classList.remove('opacity-0'); modal.firstElementChild.classList.remove('scale-95'); modal.firstElementChild.classList.add('scale-100'); }, 10);
-            }
-            function closeDeleteModal() {
-                const modal = document.getElementById('delete-modal'); modal.classList.add('opacity-0'); modal.firstElementChild.classList.remove('scale-100'); modal.firstElementChild.classList.add('scale-95');
-                setTimeout(() => { modal.classList.add('hidden'); pendingDeleteId = null; }, 300);
-            }
+            function requestDelete(id) { pendingDeleteId = id; const modal = document.getElementById('delete-modal'); modal.classList.remove('hidden'); setTimeout(() => { modal.classList.remove('opacity-0'); modal.firstElementChild.classList.remove('scale-95'); modal.firstElementChild.classList.add('scale-100'); }, 10); }
+            function closeDeleteModal() { const modal = document.getElementById('delete-modal'); modal.classList.add('opacity-0'); modal.firstElementChild.classList.remove('scale-100'); modal.firstElementChild.classList.add('scale-95'); setTimeout(() => { modal.classList.add('hidden'); pendingDeleteId = null; }, 300); }
             function confirmDelete() {
                 if(!pendingDeleteId) return;
                 MOCK_DATA = MOCK_DATA.filter(i => i.id !== pendingDeleteId);
                 closeDeleteModal(); renderGroupedList();
+                showToast('データを削除しました', 'warning'); // 🟢 삭제 토스트 알림
                 if(typeof DashboardApp !== 'undefined' && DashboardApp.init) DashboardApp.init();
             }
 
-            // Auto-complete Name
-            function handleNameInput(input) {
-                const val = input.value.toLowerCase().trim(); const listEl = document.getElementById('name-suggestions');
-                if (val.length < 1) { listEl.classList.add('hidden'); return; }
-                const matches = MOCK_MASTER.filter(p => p.name.toLowerCase().includes(val));
-                if (matches.length === 0) { listEl.classList.add('hidden'); return; }
-                listEl.innerHTML = matches.map(p => `<li class="px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-100 dark:border-gray-700 last:border-0" onclick="InputApp.selectName('${p.name}', '${p.dept}')"><div class="font-bold text-gray-800 dark:text-white">${p.name}</div><div class="text-xs text-gray-500 mt-1">${p.dept}</div></li>`).join('');
-                listEl.classList.remove('hidden');
-            }
-            function selectName(name, dept) {
-                document.getElementById('form-name').value = name; document.getElementById('form-dept').value = dept;
-                document.getElementById('name-suggestions').classList.add('hidden');
-            }
+            function handleNameInput(input) { const val = input.value.toLowerCase().trim(); const listEl = document.getElementById('name-suggestions'); if (val.length < 1) { listEl.classList.add('hidden'); return; } const matches = MOCK_MASTER.filter(p => p.name.toLowerCase().includes(val)); if (matches.length === 0) { listEl.classList.add('hidden'); return; } listEl.innerHTML = matches.map(p => `<li class="px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-100 dark:border-gray-700 last:border-0" onclick="InputApp.selectName('${p.name}', '${p.dept}')"><div class="font-bold text-gray-800 dark:text-white">${p.name}</div><div class="text-xs text-gray-500 mt-1">${p.dept}</div></li>`).join(''); listEl.classList.remove('hidden'); }
+            function selectName(name, dept) { document.getElementById('form-name').value = name; document.getElementById('form-dept').value = dept; document.getElementById('name-suggestions').classList.add('hidden'); }
 
-            // Photos & Camera
             function openSourceSelect(fileId) { currentTargetFileId = fileId; const overlay = document.getElementById('sourceSelectOverlay'); overlay.classList.remove('hidden'); overlay.classList.add('flex'); setTimeout(()=>{overlay.classList.remove('opacity-0'); document.getElementById('sourceSelectBox').classList.remove('translate-y-full');},10); }
             function closeSourceSelect() { const overlay = document.getElementById('sourceSelectOverlay'); overlay.classList.add('opacity-0'); document.getElementById('sourceSelectBox').classList.add('translate-y-full'); setTimeout(()=>{ overlay.classList.add('hidden'); overlay.classList.remove('flex'); },300); currentTargetFileId = null; }
             function confirmSource(type) { if (!currentTargetFileId) return; const input = document.getElementById(currentTargetFileId); if (type === 'camera') input.setAttribute('capture', 'environment'); else input.removeAttribute('capture'); closeSourceSelect(); setTimeout(() => input.click(), 100); }
-            function handleFileSelect(input, imgId) {
-                if (input.files && input.files[0]) {
-                    const reader = new FileReader();
-                    reader.onload = function(e) {
-                        document.getElementById(imgId).src = e.target.result; document.getElementById(imgId).classList.remove('hidden');
-                        const btn = document.getElementById('btn-draw-' + input.id); if(btn) btn.classList.remove('hidden');
-                    }
-                    reader.readAsDataURL(input.files[0]);
-                }
-            }
+            function handleFileSelect(input, imgId) { if (input.files && input.files[0]) { const reader = new FileReader(); reader.onload = function(e) { document.getElementById(imgId).src = e.target.result; document.getElementById(imgId).classList.remove('hidden'); const btn = document.getElementById('btn-draw-' + input.id); if(btn) btn.classList.remove('hidden'); }; reader.readAsDataURL(input.files[0]); } }
 
-            // Gallery
-            function openGallery(id) {
-                const item = MOCK_DATA.find(i => i.id === id); if(!item) return;
-                const container = document.getElementById('galleryContainer'); container.innerHTML = "";
-                document.getElementById('galleryTitle').innerText = `${item.location} - ${item.name}`;
-                const photos = [item.photo1, item.photo2, item.photo3].filter(Boolean);
-                document.getElementById('galleryOverlay').style.display = 'flex'; document.getElementById('galleryOverlay').classList.remove('hidden');
-                photos.forEach((url) => {
-                    const wrapper = document.createElement('div'); wrapper.className = "w-full bg-gray-900/50 rounded-2xl flex justify-center items-center min-h-[350px] relative shrink-0 snap-center";
-                    const img = document.createElement('img'); img.className = "max-w-full max-h-[70vh] rounded-xl object-contain"; img.src = url; 
-                    wrapper.appendChild(img); container.appendChild(wrapper);
-                });
-                if(photos.length === 0) container.innerHTML = "<div class='text-white mt-20 opacity-50'>写真なし</div>";
-            }
+            function openGallery(id) { const item = MOCK_DATA.find(i => i.id === id); if(!item) return; const container = document.getElementById('galleryContainer'); container.innerHTML = ""; document.getElementById('galleryTitle').innerText = `${item.location} - ${item.name}`; const photos = [item.photo1, item.photo2, item.photo3].filter(Boolean); document.getElementById('galleryOverlay').style.display = 'flex'; document.getElementById('galleryOverlay').classList.remove('hidden'); photos.forEach((url) => { const wrapper = document.createElement('div'); wrapper.className = "w-full bg-gray-900/50 rounded-2xl flex justify-center items-center min-h-[350px] relative shrink-0 snap-center"; const img = document.createElement('img'); img.className = "max-w-full max-h-[70vh] rounded-xl object-contain"; img.src = url; wrapper.appendChild(img); container.appendChild(wrapper); }); if(photos.length === 0) container.innerHTML = "<div class='text-white mt-20 opacity-50'>写真なし</div>"; }
             function closeGallery(e) { if (e.target.id === 'galleryOverlay' || e.target.closest('button')) { document.getElementById('galleryOverlay').classList.add('hidden'); document.getElementById('galleryOverlay').classList.remove('flex'); } }
 
-            // Canvas Drawing Editor (완벽 복원)
-            function openDrawing(fileId, event) {
-                if(event) event.stopPropagation();
-                const previewId = 'preview' + fileId.replace('file', ''); const previewImg = document.getElementById(previewId);
-                if (!previewImg || !previewImg.src || previewImg.classList.contains('hidden')) return;
-                currentDrawingFileId = fileId;
-                
-                const overlay = document.getElementById('drawingOverlay'); canvas = document.getElementById('drawCanvas'); ctx = canvas.getContext('2d');
-                overlay.classList.remove('hidden'); overlay.classList.add('flex'); history = [];
-                
-                drawingImg.crossOrigin = "Anonymous";
-                drawingImg.onload = () => {
-                    // 화면 크기에 맞게 캔버스 사이즈 조정
-                    const container = document.getElementById('canvas-container');
-                    const imgRatio = drawingImg.width / drawingImg.height;
-                    let cw = container.clientWidth, ch = container.clientWidth / imgRatio;
-                    if(ch > container.clientHeight) { ch = container.clientHeight; cw = container.clientHeight * imgRatio; }
-                    canvas.width = cw; canvas.height = ch;
-                    ctx.drawImage(drawingImg, 0, 0, cw, ch); 
-                    setTool('pen'); setPenColor('red'); 
-                };
-                drawingImg.src = previewImg.src;
-                
-                canvas.onmousedown = canvas.ontouchstart = startDraw;
-                canvas.onmousemove = canvas.ontouchmove = draw;
-                canvas.onmouseup = canvas.ontouchend = stopDraw;
-            }
+            function openDrawing(fileId, event) { if(event) event.stopPropagation(); const previewId = 'preview' + fileId.replace('file', ''); const previewImg = document.getElementById(previewId); if (!previewImg || !previewImg.src || previewImg.classList.contains('hidden')) return; currentDrawingFileId = fileId; const overlay = document.getElementById('drawingOverlay'); canvas = document.getElementById('drawCanvas'); ctx = canvas.getContext('2d'); overlay.classList.remove('hidden'); overlay.classList.add('flex'); history = []; drawingImg.crossOrigin = "Anonymous"; drawingImg.onload = () => { const container = document.getElementById('canvas-container'); const imgRatio = drawingImg.width / drawingImg.height; let cw = container.clientWidth, ch = container.clientWidth / imgRatio; if(ch > container.clientHeight) { ch = container.clientHeight; cw = container.clientHeight * imgRatio; } canvas.width = cw; canvas.height = ch; ctx.drawImage(drawingImg, 0, 0, cw, ch); setTool('pen'); setPenColor('red'); }; drawingImg.src = previewImg.src; canvas.onmousedown = canvas.ontouchstart = startDraw; canvas.onmousemove = canvas.ontouchmove = draw; canvas.onmouseup = canvas.ontouchend = stopDraw; }
             function closeDrawing() { document.getElementById('drawingOverlay').classList.add('hidden'); document.getElementById('drawingOverlay').classList.remove('flex'); currentDrawingFileId = null; }
             function startDraw(e) { isDrawing = true; history.push(ctx.getImageData(0, 0, canvas.width, canvas.height)); ctx.beginPath(); const pos = getPos(e); startX = pos.x; startY = pos.y; if (currentTool === 'pen') ctx.moveTo(startX, startY); else snapshot = ctx.getImageData(0, 0, canvas.width, canvas.height); }
             function draw(e) { if (!isDrawing) return; e.preventDefault(); const pos = getPos(e); if (currentTool === 'pen') { ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.lineTo(pos.x, pos.y); ctx.stroke(); } else { ctx.putImageData(snapshot, 0, 0); ctx.lineWidth = 4; ctx.beginPath(); if (currentTool === 'rect') { ctx.strokeRect(startX, startY, pos.x - startX, pos.y - startY); } else if (currentTool === 'circle') { const cx = startX + (pos.x - startX)/2, cy = startY + (pos.y - startY)/2, rx = Math.abs(pos.x - startX)/2, ry = Math.abs(pos.y - startY)/2; ctx.ellipse(cx, cy, rx, ry, 0, 0, 2*Math.PI); ctx.stroke(); } } }
@@ -935,24 +609,8 @@
             function setPenColor(color) { const r = document.getElementById('color-red'), y = document.getElementById('color-yellow'); r.classList.remove('ring-2', 'opacity-50'); y.classList.remove('ring-2', 'opacity-50'); if(color === 'red') { ctx.strokeStyle = '#EF4444'; r.classList.add('ring-2'); y.classList.add('opacity-50'); } else { ctx.strokeStyle = '#FACC15'; y.classList.add('ring-2'); r.classList.add('opacity-50'); } }
             function saveDrawing() { if (!currentDrawingFileId) return; try{ const dataUrl = canvas.toDataURL('image/jpeg', 0.8); document.getElementById('preview' + currentDrawingFileId.replace('file', '')).src = dataUrl; editedFiles[currentDrawingFileId] = dataUrl; }catch(e){ alert("CORS制約により保存できません。"); } closeDrawing(); }
 
-            // QR Scanner
-            function startQRScanner() {
-                const overlay = document.getElementById('qr-overlay'), video = document.getElementById('qr-video');
-                if (!overlay || !video) return; overlay.classList.remove('hidden'); overlay.classList.add('flex'); isScanning = true;
-                navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }).then(stream => { videoStream = stream; video.srcObject = stream; video.setAttribute("playsinline", true); video.play(); requestAnimationFrame(scanTick); }).catch(err => { alert("カメラ起動エラー: " + err); stopQRScanner(); });
-            }
-            function scanTick() {
-                if (!isScanning) return; const video = document.getElementById('qr-video'), canvas = document.getElementById('qr-canvas');
-                if (!video || !canvas) return; const context = canvas.getContext('2d');
-                if (video.readyState === video.HAVE_ENOUGH_DATA) {
-                    canvas.height = video.videoHeight; canvas.width = video.videoWidth; context.drawImage(video, 0, 0, canvas.width, canvas.height);
-                    if(typeof jsQR !== 'undefined') {
-                        const code = jsQR(context.getImageData(0, 0, canvas.width, canvas.height).data, canvas.width, canvas.height, { inversionAttempts: "dontInvert" });
-                        if (code) { document.getElementById('form-location').value = code.data; stopQRScanner(); return; }
-                    }
-                }
-                requestAnimationFrame(scanTick);
-            }
+            function startQRScanner() { const overlay = document.getElementById('qr-overlay'), video = document.getElementById('qr-video'); if (!overlay || !video) return; overlay.classList.remove('hidden'); overlay.classList.add('flex'); isScanning = true; navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }).then(stream => { videoStream = stream; video.srcObject = stream; video.setAttribute("playsinline", true); video.play(); requestAnimationFrame(scanTick); }).catch(err => { alert("カメラ起動エラー: " + err); stopQRScanner(); }); }
+            function scanTick() { if (!isScanning) return; const video = document.getElementById('qr-video'), canvas = document.getElementById('qr-canvas'); if (!video || !canvas) return; const context = canvas.getContext('2d'); if (video.readyState === video.HAVE_ENOUGH_DATA) { canvas.height = video.videoHeight; canvas.width = video.videoWidth; context.drawImage(video, 0, 0, canvas.width, canvas.height); if(typeof jsQR !== 'undefined') { const code = jsQR(context.getImageData(0, 0, canvas.width, canvas.height).data, canvas.width, canvas.height, { inversionAttempts: "dontInvert" }); if (code) { document.getElementById('form-location').value = code.data; stopQRScanner(); showToast('QRコードを読み取りました'); return; } } } requestAnimationFrame(scanTick); }
             function stopQRScanner() { isScanning = false; document.getElementById('qr-overlay').classList.add('hidden'); document.getElementById('qr-overlay').classList.remove('flex'); if (videoStream) { videoStream.getTracks().forEach(t => t.stop()); videoStream = null; } }
 
             return { init, filterList, openPanel, closePanel, enableEditMode, submitData, requestDelete, closeDeleteModal, confirmDelete, handleNameInput, selectName, openSourceSelect, closeSourceSelect, confirmSource, handleFileSelect, openGallery, closeGallery, openDrawing, closeDrawing, setTool, setPenColor, undoDrawing, clearCanvas, saveDrawing, startQRScanner, stopQRScanner, closeCustomAlert };
