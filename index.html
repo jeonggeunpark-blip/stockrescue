@@ -1,0 +1,1282 @@
+<!DOCTYPE html>
+<html lang="ja" class="antialiased">
+<head>
+    <meta charset="UTF-8">
+    <title>Stock Rescue | 入荷品廃棄ゼロ化プロジェクト (Demo)</title>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#0f172a">
+
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="在庫管理">
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'Noto Sans JP', 'sans-serif'] },
+                    animation: { 'fade-in': 'fadeIn 0.3s ease-out' },
+                    keyframes: { fadeIn: { '0%': { opacity: '0', transform: 'translateY(10px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } } },
+                    colors: { 
+                        slate: { 50:'#F8FAFC', 100:'#F1F5F9', 200:'#E2E8F0', 300:'#CBD5E1', 400:'#94A3B8', 500:'#64748B', 600:'#475569', 700:'#334155', 800:'#1E293B', 900:'#0F172A', 950:'#020617' }, 
+                        primary: '#3B82F6', danger: '#EF4444', success: '#10B981' 
+                    },
+                    boxShadow: { 'soft': '0 4px 20px -2px rgba(0, 0, 0, 0.05)', 'glass': '0 8px 32px 0 rgba(31, 38, 135, 0.07)' },
+                    borderRadius: { '3xl': '1.5rem', '4xl': '2rem' }
+                }
+            }
+        }
+    </script>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;900&family=Noto+Sans+JP:wght@400;700;900&family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
+    
+    <style>
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        body { -webkit-tap-highlight-color: transparent; background-color: #F2F4F6; color: #191F28; padding-bottom: 80px; }
+        .dark body { background-color: #111827; color: #F3F4F6; }
+        
+        .card-base { background-color: #FFFFFF; border-radius: 1.25rem; box-shadow: 0 2px 10px rgba(0,0,0,0.03); border: none; transition: transform 0.2s cubic-bezier(0.25, 0.8, 0.25, 1); }
+        .dark .card-base { background-color: #1F2937; box-shadow: none; border: 1px solid #374151; }
+        
+        .input-base { background-color: #F9FAFB; border: 1px solid transparent; color: #1F2937; border-radius: 1rem; padding: 0.75rem 1rem; outline: none; width: 100%; transition: all 0.2s; font-size: 0.95rem; font-weight: 500; }
+        .dark .input-base { background-color: #374151; color: #F9FAFB; }
+        .input-base:focus { background-color: #fff; box-shadow: 0 0 0 2px #3B82F6; }
+        .dark .input-base:focus { background-color: #1F2937; box-shadow: 0 0 0 2px #60A5FA; }
+
+        .slide-panel {
+            position: fixed; top: 50%; left: 50%; width: 90%; max-width: 450px; max-height: 85vh;
+            background: white; z-index: 2001; border-radius: 24px !important; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            display: flex; flex-direction: column; transform: translate(-50%, -50%) scale(0.9); opacity: 0; pointer-events: none;
+            transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .dark .slide-panel { background: #1F2937; border: 1px solid #374151; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
+        .slide-panel.open { transform: translate(-50%, -50%) scale(1); opacity: 1; pointer-events: auto; }
+
+        .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 2000; opacity: 0; pointer-events: none; transition: opacity 0.3s; backdrop-filter: blur(4px); }
+        .overlay.open { opacity: 1; pointer-events: auto; }
+
+        .bottom-nav { position: fixed; bottom: 0; left: 0; width: 100%; height: 65px; background: #ffffff; display: flex; z-index: 1000; padding-bottom: env(safe-area-inset-bottom); box-shadow: 0 -1px 10px rgba(0, 0, 0, 0.05); }
+        .dark .bottom-nav { background: #1e293b; border-top: 1px solid #334155; }
+        .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; height: 100%; transition: all 0.3s ease; color: #94a3b8; }
+        .nav-item.active { background-color: #334155 !important; color: #ffffff !important; }
+        .dark .nav-item.active { background-color: #475569 !important; color: #ffffff !important; }
+
+        .hidden { display: none !important; }
+        .animate-fade-in { animation: fadeIn 0.5s ease-out forwards; opacity: 0; transform: translateY(5px); }
+
+        #intro-screen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: #ffffff; z-index: 9999;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            transition: opacity 0.8s ease-in-out, visibility 0.8s;
+        }
+        .dark #intro-screen { background-color: #0F172A; }
+        #intro-screen.fade-out { opacity: 0; visibility: hidden; pointer-events: none; }
+        #intro-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; opacity: 0.6; }
+        .intro-content { position: relative; z-index: 10; text-align: center; color: #0f172a; animation: fadeIn 1s ease-out; }
+        .dark .intro-content { color: #E2E8F0; }
+        .intro-title { font-size: 1.5rem; font-weight: 800; letter-spacing: 1px; margin-bottom: 0.5rem; color: inherit; }
+        .intro-sub { color: #64748b; font-size: 0.75rem; font-family: 'Roboto Mono', monospace; font-weight: bold; }
+        .dark .intro-sub { color: #94a3b8; }
+        .intro-loader {
+            display: inline-block; width: 40px; height: 40px;
+            border: 3px solid #e2e8f0; border-radius: 50%;
+            border-top-color: #3B82F6; 
+            animation: spin 1s ease-in-out infinite; margin-top: 25px;
+        }
+        .dark .intro-loader { border-color: #334155; border-top-color: #60A5FA; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        #galleryOverlay { background-color: rgba(15, 23, 42, 0.95); backdrop-filter: blur(8px); }
+        #galleryContainer { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; }
+    </style>
+</head>
+
+<body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 font-sans antialiased selection:bg-blue-500 selection:text-white overflow-x-hidden">
+
+    <div id="intro-screen">
+        <canvas id="intro-canvas"></canvas>
+        <div class="intro-content">
+            <h1 class="intro-title">Stock Rescue</h1>
+            <p class="intro-sub">Stop Loss, Save Assets. (Demo)</p>
+            <p class="text-[10px] text-slate-400 mt-2 font-bold">入荷品滞留・廃棄防止システム</p>
+            <div class="intro-loader"></div>
+        </div>
+    </div>
+
+    <div id="loadingSpinner" class="fixed inset-0 bg-black/20 z-[9999] hidden flex items-center justify-center backdrop-blur-sm transition-opacity">
+        <div class="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-2xl flex flex-col items-center gap-3">
+            <i class="ph-bold ph-spinner animate-spin text-4xl text-blue-500"></i>
+            <span class="text-xs font-bold text-slate-500 dark:text-slate-400">処理中...</span>
+        </div>
+    </div>
+
+    <div id="delete-modal" class="fixed inset-0 z-[10000] hidden flex items-center justify-center bg-black/40 backdrop-blur-sm transition-opacity opacity-0">
+        <div class="bg-white dark:bg-slate-800 w-[90%] max-w-sm rounded-3xl p-6 shadow-2xl transform scale-95 transition-all">
+            <div class="flex flex-col items-center text-center">
+                <div class="w-14 h-14 rounded-full bg-red-100 dark:bg-red-900/30 text-red-500 flex items-center justify-center mb-4">
+                    <i class="ph-fill ph-trash text-2xl"></i>
+                </div>
+                <h3 class="text-lg font-bold text-slate-900 dark:text-white mb-2">削除しますか？</h3>
+                <p class="text-sm text-slate-500 dark:text-slate-400 mb-6">この操作は取り消せません。<br>本当に削除しますか？</p>
+                <div class="flex gap-3 w-full">
+                    <button onclick="InputApp.closeDeleteModal()" class="flex-1 py-3 rounded-xl font-bold text-slate-500 bg-slate-100 dark:bg-slate-700 dark:text-slate-300 hover:bg-slate-200 transition-colors">キャンセル</button>
+                    <button onclick="InputApp.confirmDelete()" class="flex-1 py-3 rounded-xl font-bold text-white bg-red-500 hover:bg-red-600 shadow-lg shadow-red-500/30 transition-transform active:scale-95">削除する</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <main id="main-content" class="w-full h-full min-h-screen relative">
+        <div id="view-menu" class="hidden fixed inset-0 w-full h-screen bg-[#F8FAFC] dark:bg-[#020617] transition-colors duration-300 z-50 flex flex-col items-center justify-center overflow-hidden">
+            <div class="text-center mb-10 scale-100 origin-bottom">
+                <div class="w-20 h-20 bg-gradient-to-tr from-blue-500 to-indigo-600 rounded-3xl flex items-center justify-center text-white shadow-xl shadow-blue-500/30 mx-auto mb-6">
+                    <i class="ph-fill ph-cube text-4xl"></i>
+                </div>
+                <h2 class="text-2xl font-black text-slate-900 dark:text-white mb-2">在庫管理システム</h2>
+                <p class="text-slate-400 font-medium">デモバージョン</p>
+            </div>
+
+            <div class="grid grid-cols-1 gap-5 w-full max-w-sm px-6">
+                <button onclick="AppRouter.switch('dashboard')" class="group relative bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-xl shadow-slate-200/50 dark:shadow-none flex items-center gap-5 transition-all hover:scale-[1.02] active:scale-95 text-left cursor-pointer">
+                    <div class="w-14 h-14 rounded-2xl bg-blue-50 dark:bg-blue-900/30 text-blue-500 flex items-center justify-center shrink-0 group-hover:bg-blue-500 group-hover:text-white transition-colors">
+                        <i class="ph-fill ph-chart-bar text-2xl"></i>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <h3 class="text-lg font-bold text-slate-800 dark:text-white group-hover:text-blue-500 transition-colors">ダッシュボード</h3>
+                        <p class="text-xs text-slate-400 mt-1">在庫状況・統計を確認</p>
+                    </div>
+                    <i class="ph-bold ph-caret-right text-xl text-slate-300 group-hover:text-blue-500 transition-colors"></i>
+                </button>
+
+                <button onclick="AppRouter.switch('input')" class="group relative bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-xl shadow-slate-200/50 dark:shadow-none flex items-center gap-5 transition-all hover:scale-[1.02] active:scale-95 text-left cursor-pointer">
+                    <div class="w-14 h-14 rounded-2xl bg-emerald-50 dark:bg-emerald-900/30 text-emerald-500 flex items-center justify-center shrink-0 group-hover:bg-emerald-500 group-hover:text-white transition-colors">
+                        <i class="ph-fill ph-clipboard-text text-2xl"></i>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <h3 class="text-lg font-bold text-slate-800 dark:text-white group-hover:text-emerald-500 transition-colors">データ入力</h3>
+                        <p class="text-xs text-slate-400 mt-1">新規登録・編集・削除</p>
+                    </div>
+                    <i class="ph-bold ph-caret-right text-xl text-slate-300 group-hover:text-emerald-500 transition-colors"></i>
+                </button>
+            </div>
+            <p class="absolute bottom-8 text-[10px] text-slate-300 dark:text-slate-700 font-bold tracking-widest uppercase">System v2.0 (Demo)</p>
+        </div>
+        
+        <div id="view-dashboard" class="w-full pb-24 hidden px-4 md:px-6 pt-6 max-w-[1400px] mx-auto">
+            <div class="flex items-center justify-between mb-6">
+                <div>
+                    <h2 class="text-2xl font-black text-slate-900 dark:text-white">Dashboard</h2>
+                    <p class="text-xs text-slate-400 font-bold">在庫状況・統計</p>
+                </div>
+                <div class="flex items-center gap-3">
+                     <select id="langSwitcher" class="text-xs bg-transparent font-bold text-slate-400 outline-none cursor-pointer">
+                        <option value="ja">JP</option>
+                        <option value="en">EN</option>
+                    </select>
+                    <button onclick="window.ThemeManager.toggle()" class="w-9 h-9 rounded-full bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 shadow-sm flex items-center justify-center text-slate-500 dark:text-slate-400">
+                        <i class="ph-bold ph-moon-stars" id="themeIcon"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex flex-col md:flex-row gap-3 mb-6 w-full animate-fade-in">
+                <div class="flex items-center gap-2 w-full md:flex-1 min-w-0">
+                    <div class="flex items-center gap-2 shrink-0">
+                        <span class="text-sm font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">提出日</span>
+                        <div class="relative">
+                            <select id="monthFilter" class="h-11 bg-white dark:bg-slate-800 border border-transparent text-slate-800 dark:text-white text-sm font-bold rounded-xl pl-3 pr-8 outline-none focus:ring-2 focus:ring-blue-500 shadow-sm appearance-none transition-all cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 min-w-[110px]"></select>
+                            <i class="ph-bold ph-caret-down absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none"></i>
+                        </div>
+                    </div>
+                    <div class="relative flex-1 min-w-0">
+                        <i class="ph-bold ph-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-lg"></i>
+                        <input type="search" id="searchFilter" class="w-full h-11 bg-white dark:bg-slate-800 border border-transparent text-slate-800 dark:text-white rounded-xl pl-11 pr-4 outline-none focus:ring-2 focus:ring-blue-500 shadow-sm transition-all font-medium text-sm placeholder:text-slate-400 truncate" placeholder="キーワード検索...">
+                    </div>
+                </div>
+                <div class="flex items-center justify-between md:justify-end gap-2 w-full md:w-auto shrink-0">
+                    <div class="flex items-center bg-white dark:bg-slate-800 rounded-xl px-3 h-11 shadow-sm border border-transparent hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shrink-0" title="在庫警告の閾値設定">
+                        <span class="text-slate-400 mr-1.5"><i class="ph-fill ph-warning-circle text-lg"></i></span>
+                        <span class="text-[11px] font-bold text-slate-500 dark:text-slate-400 mr-2 whitespace-nowrap">警告数</span>
+                        <input type="number" id="warningThreshold" value="20" min="1" class="w-10 bg-transparent text-center font-bold text-slate-800 dark:text-white outline-none text-sm appearance-none p-0">
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button id="reloadButton" class="flex items-center justify-center gap-1.5 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-3 h-11 rounded-xl border border-transparent shadow-sm font-bold text-sm whitespace-nowrap active:scale-95 transition-transform hover:text-blue-500 hover:bg-slate-50 dark:hover:bg-slate-700">
+                            <i class="ph-bold ph-arrow-clockwise text-lg"></i><span>更新</span>
+                        </button>
+                        <button id="exportCsvButton" class="flex items-center justify-center gap-1.5 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-3 h-11 rounded-xl border border-transparent shadow-sm font-bold text-sm whitespace-nowrap active:scale-95 transition-transform hover:text-green-500 hover:bg-slate-50 dark:hover:bg-slate-700">
+                            <i class="ph-bold ph-file-csv text-lg"></i><span>CSV</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-12 gap-5 items-start">
+                <div class="flex flex-col gap-5 md:col-span-3">
+                    <div>
+                        <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-2 select-none" data-i18n="kpiTitle">概要</h2>
+                        <div id="kpiGrid" class="grid grid-cols-2 gap-2"></div>
+                    </div>
+                    <div class="card-base p-4 bg-gradient-to-br from-white to-slate-50 dark:from-slate-800 dark:to-slate-800/50 flex flex-col justify-center min-h-[140px]">
+                        <h2 class="text-xs font-bold text-slate-800 dark:text-white mb-2 flex items-center gap-2" data-i18n="summaryTitle"><i class="ph-duotone ph-clipboard-text text-primary"></i> サマリー</h2>
+                        <ul id="summaryList" class="space-y-1.5 text-xs text-slate-600 dark:text-slate-400"></ul>
+                    </div>
+                    <div class="card-base flex flex-col border-l-4 border-red-500 overflow-hidden min-h-[160px]" id="warningContainer" style="display: none;">
+                        <div class="p-3 bg-red-50 dark:bg-red-900/10 flex justify-between items-center shrink-0">
+                            <h2 class="text-xs font-bold text-red-600 dark:text-red-400 flex items-center gap-2"><i class="ph-fill ph-warning-circle"></i> <span data-i18n="warningTitle">警告</span></h2>
+                            <span class="text-[10px] bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-300 px-2 py-0.5 rounded-full font-bold shadow-sm">在庫超過</span>
+                        </div>
+                        <div class="overflow-y-auto max-h-[200px]">
+                            <table class="w-full text-left">
+                                <thead class="bg-red-50/50 dark:bg-red-900/10 text-red-900 dark:text-red-300 text-[10px] font-bold sticky top-0 z-10"><tr id="warningTableHeader"></tr></thead>
+                                <tbody id="warningTableBody" class="text-xs divide-y divide-red-50 dark:divide-red-900/20"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex flex-col gap-5 md:col-span-5">
+                    <div class="card-base p-4 h-64 flex flex-col">
+                        <div class="flex justify-between items-center mb-1 shrink-0 select-none">
+                            <h2 id="comparisonChartTitle" class="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2" data-i18n="comparisonChartTitle">トレンド</h2>
+                        </div>
+                        <div class="flex-grow w-full min-h-0 relative"><canvas id="comparisonChart" class="lazy-chart"></canvas></div>
+                    </div>
+                    <div class="card-base p-4 h-64 flex flex-col">
+                        <div class="flex justify-between items-center mb-1 shrink-0 select-none">
+                            <h2 id="deptChartTitle" class="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2" data-i18n="deptChartTitle">部署別</h2>
+                        </div>
+                        <div class="flex-grow w-full min-h-0 relative"><canvas id="departmentChart" class="lazy-chart"></canvas></div>
+                    </div>
+                </div>
+                <div class="flex flex-col md:col-span-4 h-full">
+                    <div class="card-base flex flex-col bg-transparent shadow-none border-none md:bg-white md:dark:bg-slate-800 md:shadow-soft md:border md:border-slate-100 md:dark:border-slate-700 h-auto">
+                        <div class="p-3 border-b border-transparent md:border-slate-100 md:dark:border-slate-700 shrink-0 flex justify-between items-center select-none">
+                            <h2 class="text-sm font-bold text-slate-500 md:text-slate-800 md:dark:text-white uppercase tracking-wider md:normal-case flex items-center gap-2" data-i18n="detailsTitle"><i class="hidden md:inline ph-duotone ph-list-dashes text-primary"></i> 詳細</h2>
+                            <select id="locationFilter" class="hidden"></select>
+                        </div>
+                        <div id="dataCardsContainer" class="flex-grow min-h-0"></div>
+                        <div id="loadMoreContainer" class="p-2 text-center shrink-0 hidden">
+                            <button id="loadMoreBtn" class="text-xs font-bold text-blue-500 py-2 w-full bg-white dark:bg-slate-800 rounded-lg shadow-sm" data-i18n="loadMore">もっと見る</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div id="submissionDate" class="hidden"></div>
+        </div>
+
+        <div id="view-input" class="w-full hidden pb-24 px-4 md:px-6 pt-6 max-w-[1400px] mx-auto">
+            <div class="flex items-center justify-between mb-6">
+                <div>
+                    <h2 class="text-2xl font-black text-slate-900 dark:text-white">Data Input</h2>
+                    <p class="text-xs text-slate-400 font-bold">データ登録</p>
+                </div>
+                <button onclick="window.ThemeManager.toggle()" class="w-9 h-9 rounded-full bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 shadow-sm flex items-center justify-center text-slate-500 dark:text-slate-400">
+                    <i class="ph-bold ph-moon-stars"></i>
+                </button>
+            </div>
+
+            <div class="sticky top-0 z-20 bg-[#F2F4F6] dark:bg-[#111827] pb-2 px-1 transition-colors">
+                <div class="relative bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 h-14 flex items-center justify-between overflow-hidden px-4">
+                    <div id="input-title-group" class="flex items-center gap-2 transition-all duration-300">
+                        <h2 class="text-lg font-bold text-slate-800 dark:text-white tracking-tight">登録一覧</h2>
+                        <span class="text-xs font-bold text-slate-400 bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded-full">List</span>
+                    </div>
+                    <button onclick="toggleSearch('input', true)" class="w-10 h-10 flex items-center justify-center rounded-xl text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                        <i class="ph-bold ph-magnifying-glass text-xl"></i>
+                    </button>
+                    <div id="input-search-bar" class="absolute inset-0 bg-white dark:bg-slate-800 flex items-center px-2 translate-x-full transition-transform duration-300 ease-in-out z-10">
+                        <i class="ph-bold ph-magnifying-glass text-slate-400 ml-2"></i>
+                        <input type="text" id="input-search" class="flex-1 bg-transparent border-none outline-none text-base h-full px-2 text-slate-800 dark:text-white placeholder:text-slate-400 font-medium" placeholder="名前、場所で検索..." onkeyup="InputApp.filterList(this.value)">
+                        <button onclick="toggleSearch('input', false)" class="w-9 h-9 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500">
+                            <i class="ph-bold ph-x"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div id="input-list-container" class="space-y-4 pt-2"></div>
+            <button onclick="InputApp.openPanel('create')" class="fixed bottom-24 right-6 w-14 h-14 rounded-full bg-slate-700 hover:bg-slate-600 text-white shadow-xl shadow-slate-700/40 flex items-center justify-center active:scale-90 transition-transform z-30">
+                <i class="ph-bold ph-plus text-2xl"></i>
+            </button>
+        </div>
+    </main>
+
+    <nav class="bottom-nav fixed bottom-6 left-1/2 -translate-x-1/2 w-[320px] bg-white dark:bg-slate-800 p-2 rounded-[2.5rem] shadow-xl shadow-slate-200/50 dark:shadow-black/50 border border-slate-100 dark:border-slate-700 z-50 flex justify-between items-center" style="display: none;">
+        <button id="nav-dash" onclick="AppRouter.switch('dashboard')" class="nav-item flex-1 py-3 rounded-[2rem] flex flex-col items-center justify-center gap-0.5 text-slate-400 transition-all duration-300 group-[.active]:bg-slate-100 dark:group-[.active]:bg-slate-700 group-[.active]:text-slate-900 dark:group-[.active]:text-white group-[.active]:shadow-sm">
+            <i class="ph-fill ph-chart-bar text-2xl mb-0.5"></i>
+            <span class="text-[10px] font-bold">ダッシュボード</span>
+        </button>
+        <button id="nav-input" onclick="AppRouter.switch('input')" class="nav-item flex-1 py-3 rounded-[2rem] flex flex-col items-center justify-center gap-0.5 text-slate-400 transition-all duration-300 group-[.active]:bg-slate-100 dark:group-[.active]:bg-slate-700 group-[.active]:text-slate-900 dark:group-[.active]:text-white group-[.active]:shadow-sm">
+            <i class="ph-fill ph-clipboard-text text-2xl mb-0.5"></i>
+            <span class="text-[10px] font-bold">入力</span>
+        </button>
+    </nav>
+
+    <div id="form-overlay" class="overlay" onclick="InputApp.closePanel(); DashboardApp.closeLocationDetail();"></div>
+    <aside id="form-panel" class="slide-panel rounded-2xl">
+        <div class="flex justify-between items-center px-6 py-4 md:py-6 border-b border-slate-100 dark:border-slate-800">
+            <h3 id="panel-title" class="text-xl font-bold text-slate-900 dark:text-white tracking-tight text-center flex-1 ml-8">詳細情報</h3>
+            <div class="flex items-center gap-2">
+                <button id="btn-edit-mode" onclick="InputApp.enableEditMode()" class="hidden w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300">
+                    <i class="ph-bold ph-pencil-simple text-xl"></i>
+                </button>
+                <button onclick="InputApp.closePanel()" class="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 dark:text-slate-400">
+                    <i class="ph-bold ph-x"></i>
+                </button>
+            </div>
+        </div>
+
+        <div class="flex-1 overflow-y-auto px-6 py-4">
+            <div id="detail-view" class="space-y-6 animate-fade-in">
+                <div id="detail-photos" class="w-full"></div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl">
+                        <span class="block text-[10px] text-slate-400 font-bold uppercase mb-1">日付</span>
+                        <span id="view-date" class="font-bold text-slate-800 dark:text-white text-sm"></span>
+                    </div>
+                    <div class="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl">
+                        <span class="block text-[10px] text-slate-400 font-bold uppercase mb-1">数量</span>
+                        <div class="flex items-baseline gap-1">
+                            <span id="view-qty" class="font-black text-blue-600 dark:text-blue-400 text-xl"></span>
+                            <span class="text-[10px] text-slate-400 font-bold">個</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="space-y-4">
+                    <div class="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
+                        <span class="block text-[10px] text-slate-400 font-bold uppercase mb-1">名前</span>
+                        <p id="view-name" class="text-base font-bold text-slate-900 dark:text-white"></p>
+                    </div>
+                    <div class="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
+                        <span class="block text-[10px] text-slate-400 font-bold uppercase mb-1">部署 / 置き場</span>
+                        <p id="view-location" class="text-sm font-medium text-slate-600 dark:text-slate-300"></p>
+                    </div>
+                </div>
+            </div>
+
+            <form id="dataForm" class="hidden flex flex-col h-full pb-60">
+                <input type="hidden" id="form-id">
+                <input type="hidden" id="form-email">
+                <input type="hidden" id="form-existingPhoto1"><input type="hidden" id="form-existingPhoto2"><input type="hidden" id="form-existingPhoto3">
+                <div class="space-y-4">
+                    <div class="grid grid-cols-3 gap-3">
+                        <div class="aspect-square rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors relative overflow-hidden group" id="box-file1" onclick="InputApp.openSourceSelect('file1')">
+                            <i class="ph-bold ph-camera text-2xl text-slate-300 group-hover:text-blue-500 transition-colors"></i>
+                            <img id="preview1" class="absolute inset-0 w-full h-full object-cover hidden">
+                            <input type="file" id="file1" accept="image/*" class="hidden" onchange="InputApp.handleFileSelect(this, 'preview1', 'box-file1')">
+                            <button type="button" id="btn-draw-file1" onclick="InputApp.openDrawing('file1', event)" class="absolute bottom-1 right-1 w-8 h-8 bg-black/60 text-white rounded-full hidden items-center justify-center z-10 backdrop-blur-sm active:scale-90 transition-transform"><i class="ph-bold ph-pencil-simple text-sm"></i></button>
+                        </div>
+                        <div class="aspect-square rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors relative overflow-hidden group" id="box-file2" onclick="InputApp.openSourceSelect('file2')">
+                            <i class="ph-bold ph-plus text-2xl text-slate-300 group-hover:text-blue-500 transition-colors"></i>
+                            <img id="preview2" class="absolute inset-0 w-full h-full object-cover hidden">
+                            <input type="file" id="file2" accept="image/*" class="hidden" onchange="InputApp.handleFileSelect(this, 'preview2', 'box-file2')">
+                            <button type="button" id="btn-draw-file2" onclick="InputApp.openDrawing('file2', event)" class="absolute bottom-1 right-1 w-8 h-8 bg-black/60 text-white rounded-full hidden items-center justify-center z-10 backdrop-blur-sm active:scale-90 transition-transform"><i class="ph-bold ph-pencil-simple text-sm"></i></button>
+                        </div>
+                        <div class="aspect-square rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors relative overflow-hidden group" id="box-file3" onclick="InputApp.openSourceSelect('file3')">
+                            <i class="ph-bold ph-plus text-2xl text-slate-300 group-hover:text-blue-500 transition-colors"></i>
+                            <img id="preview3" class="absolute inset-0 w-full h-full object-cover hidden">
+                            <input type="file" id="file3" accept="image/*" class="hidden" onchange="InputApp.handleFileSelect(this, 'preview3', 'box-file3')">
+                            <button type="button" id="btn-draw-file3" onclick="InputApp.openDrawing('file3', event)" class="absolute bottom-1 right-1 w-8 h-8 bg-black/60 text-white rounded-full hidden items-center justify-center z-10 backdrop-blur-sm active:scale-90 transition-transform"><i class="ph-bold ph-pencil-simple text-sm"></i></button>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl focus-within:ring-2 focus-within:ring-blue-500 transition-shadow">
+                            <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">日付</label>
+                            <input type="date" id="form-date" lang="ja" class="w-full bg-transparent border-none p-0 outline-none font-bold text-slate-800 dark:text-white text-sm h-6">
+                        </div>
+                        <div class="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl focus-within:ring-2 focus-within:ring-blue-500 transition-shadow relative">
+                            <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">数量</label>
+                            <div class="flex items-baseline gap-1">
+                                <input type="number" id="form-qty" class="w-full bg-transparent border-none p-0 outline-none font-black text-blue-600 dark:text-blue-400 text-xl h-7" placeholder="0">
+                                <span class="text-[10px] text-slate-400 font-bold absolute right-4 bottom-4 pointer-events-none">個</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm focus-within:ring-2 focus-within:ring-blue-500 transition-shadow relative">
+                        <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">名前</label>
+                        <input type="text" id="form-name" class="w-full bg-transparent border-none p-0 outline-none font-bold text-lg text-slate-900 dark:text-white placeholder:text-slate-300" placeholder="名前を入力" autocomplete="off" onkeyup="InputApp.handleNameInput(this)">
+                        <ul id="name-suggestions" class="hidden absolute left-0 top-full z-50 w-full bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl shadow-xl max-h-48 overflow-y-auto mt-2 p-2"></ul>
+                    </div>
+                    <div class="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm focus-within:ring-2 focus-within:ring-blue-500 transition-shadow">
+                        <label class="block text-[10px] font-bold text-slate-400 uppercase mb-2">部署 / 置き場</label>
+                        <div class="flex flex-col gap-2">
+                            <div class="relative">
+                                <select id="form-dept" class="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-2 px-3 outline-none font-bold text-sm text-slate-700 dark:text-white appearance-none">
+                                    <option value="">部署を選択</option>
+                                </select>
+                                <i class="ph-bold ph-caret-down absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none"></i>
+                            </div>
+                            <div class="flex gap-2">
+                                <input type="text" id="form-location" class="flex-1 bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-2 px-3 outline-none font-medium text-sm text-slate-700 dark:text-white placeholder:text-slate-400" placeholder="置き場 (例: A-1)">
+                                <button type="button" onclick="InputApp.startQRScanner()" class="bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 w-10 h-10 rounded-xl flex items-center justify-center shrink-0 active:scale-95 transition-transform">
+                                    <i class="ph-bold ph-qr-code text-xl"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <div id="form-footer" class="hidden p-6 pt-2 pb-8 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800">
+            <div class="flex items-center justify-between mb-4">
+                <span id="session-counter-display" class="text-xs font-bold text-blue-500 bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded hidden">今回: 0件</span>
+                <label class="flex items-center gap-2 cursor-pointer select-none">
+                    <input type="checkbox" id="continuous-mode" class="w-5 h-5 rounded border-slate-300 text-slate-600 focus:ring-slate-500">
+                    <span class="text-sm font-bold text-slate-500 dark:text-slate-400">続けて登録する</span>
+                </label>
+            </div>
+            <button onclick="InputApp.submitData()" class="w-full py-4 rounded-2xl font-bold text-white text-base bg-slate-700 hover:bg-slate-600 shadow-lg shadow-slate-700/30 active:scale-95 transition-all">変更内容を保存</button>
+        </div>
+    </aside>
+
+    <aside id="dashboard-panel" class="slide-panel rounded-2xl">
+        <div class="flex justify-between items-center px-6 py-4 border-b border-slate-100 dark:border-slate-700">
+            <h3 id="dash-panel-title" class="text-lg font-bold text-slate-900 dark:text-white truncate pr-4">Location</h3>
+            <button onclick="DashboardApp.closeLocationDetail()" class="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400"><i class="ph-bold ph-x"></i></button>
+        </div>
+        <div id="dash-panel-content" class="flex-1 overflow-y-auto p-4 space-y-2"></div>
+    </aside>
+
+    <div id="galleryOverlay" class="fixed inset-0 bg-black z-[3000] hidden flex-col justify-center animate-fade-in" onclick="InputApp.closeGallery(event)">
+        <div class="absolute top-0 w-full p-4 flex justify-between items-center z-50 bg-gradient-to-b from-black/80 to-transparent">
+            <div class="text-white font-bold truncate pr-4" id="galleryTitle">Photo</div>
+            <button class="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-white backdrop-blur"><i class="ph-bold ph-x text-lg"></i></button>
+        </div>
+        <div id="galleryContainer" class="w-full h-full overflow-y-auto flex flex-col items-center gap-4 p-4 py-20 snap-y snap-mandatory"></div>
+    </div>
+
+    <div id="sourceSelectOverlay" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[5000] hidden flex-col justify-end transition-opacity" onclick="InputApp.closeSourceSelect()">
+        <div class="bg-white dark:bg-slate-800 w-full rounded-t-3xl p-6 pb-10 transform transition-transform" onclick="event.stopPropagation()">
+            <div class="w-12 h-1 bg-slate-200 dark:bg-slate-600 rounded-full mx-auto mb-6"></div>
+            <h3 class="text-center text-lg font-bold text-slate-900 dark:text-white mb-6">写真を追加</h3>
+            <div class="space-y-3">
+                <button onclick="InputApp.confirmSource('camera')" class="w-full py-4 bg-slate-50 dark:bg-slate-700 rounded-2xl flex items-center justify-center gap-3 font-bold text-slate-800 dark:text-white active:scale-98 transition-transform"><i class="ph-bold ph-camera text-xl text-blue-500"></i> カメラ</button>
+                <button onclick="InputApp.confirmSource('gallery')" class="w-full py-4 bg-slate-50 dark:bg-slate-700 rounded-2xl flex items-center justify-center gap-3 font-bold text-slate-800 dark:text-white active:scale-98 transition-transform"><i class="ph-bold ph-image text-xl text-purple-500"></i> ギャラリー</button>
+                <button onclick="InputApp.closeSourceSelect()" class="w-full py-4 mt-2 text-slate-400 font-bold active:text-slate-600">キャンセル</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="qr-overlay" class="fixed inset-0 z-[9999] bg-black hidden flex-col">
+        <div class="absolute top-0 left-0 w-full p-6 flex justify-end z-10">
+            <button onclick="InputApp.stopQRScanner()" class="w-10 h-10 bg-black/50 text-white rounded-full flex items-center justify-center backdrop-blur-md"><i class="ph-bold ph-x text-xl"></i></button>
+        </div>
+        <div class="flex-1 relative flex items-center justify-center overflow-hidden">
+            <video id="qr-video" class="absolute inset-0 w-full h-full object-cover"></video>
+            <div class="w-64 h-64 border-2 border-blue-500 rounded-3xl relative z-10 flex items-center justify-center">
+                <div class="w-full h-0.5 bg-blue-500/50 absolute top-1/2 animate-pulse"></div>
+            </div>
+            <div class="absolute bottom-20 text-white text-sm font-bold bg-black/50 px-4 py-2 rounded-full backdrop-blur">QRコードを枠に合わせてください</div>
+        </div>
+        <canvas id="qr-canvas" class="hidden"></canvas>
+    </div>
+
+    <div id="drawingOverlay" class="fixed inset-0 bg-black z-[6000] hidden flex-col">
+        <div class="flex justify-between items-center px-4 py-3 bg-slate-900 text-white shrink-0">
+            <button onclick="InputApp.closeDrawing()" class="text-slate-400 font-bold text-sm">キャンセル</button>
+            <span class="font-bold">写真編集</span>
+            <button onclick="InputApp.saveDrawing()" class="text-blue-400 font-bold text-sm">保存</button>
+        </div>
+        <div class="flex-1 relative bg-black flex items-center justify-center overflow-hidden touch-none" id="canvas-container">
+            <canvas id="drawCanvas" class="max-w-full max-h-full object-contain"></canvas>
+        </div>
+        <div class="px-4 py-4 bg-slate-900 text-white shrink-0 flex flex-col gap-4 safe-pb">
+            <div class="flex justify-center gap-4 border-b border-slate-700 pb-4">
+                <button onclick="InputApp.setTool('pen')" id="tool-pen" class="tool-btn w-10 h-10 rounded-xl bg-slate-700 text-white flex items-center justify-center ring-2 ring-blue-500"><i class="ph-bold ph-pencil-simple text-xl"></i></button>
+                <button onclick="InputApp.setTool('rect')" id="tool-rect" class="tool-btn w-10 h-10 rounded-xl bg-slate-800 text-slate-400 flex items-center justify-center"><i class="ph-bold ph-square text-xl"></i></button>
+                <button onclick="InputApp.setTool('circle')" id="tool-circle" class="tool-btn w-10 h-10 rounded-xl bg-slate-800 text-slate-400 flex items-center justify-center"><i class="ph-bold ph-circle text-xl"></i></button>
+            </div>
+            <div class="flex justify-center gap-6 items-center">
+                <button onclick="InputApp.setPenColor('red')" id="color-red" class="w-8 h-8 rounded-full bg-red-500 border-2 border-white ring-2 ring-red-500/50 transition-transform active:scale-90"></button>
+                <button onclick="InputApp.setPenColor('yellow')" id="color-yellow" class="w-8 h-8 rounded-full bg-yellow-400 border-2 border-transparent opacity-50 transition-transform active:scale-90"></button>
+                <div class="w-px h-8 bg-slate-700 mx-2"></div>
+                <button onclick="InputApp.undoDrawing()" class="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center border border-slate-600 active:bg-slate-600"><i class="ph-bold ph-arrow-u-up-left text-lg"></i></button>
+                <button onclick="InputApp.clearCanvas()" class="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center border border-slate-600 active:bg-slate-600"><i class="ph-bold ph-trash text-lg"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <div id="custom-alert-modal" class="fixed inset-0 z-[11000] hidden flex items-center justify-center bg-slate-900/40 backdrop-blur-[2px] transition-opacity duration-300 opacity-0">
+        <div class="bg-white dark:bg-slate-800 w-[85%] max-w-[320px] rounded-[2rem] p-6 shadow-2xl border border-slate-100 dark:border-slate-700 transform scale-95 transition-all duration-300 relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-400 to-pink-500"></div>
+            <div class="absolute -right-6 -top-6 w-24 h-24 bg-red-50 dark:bg-red-900/10 rounded-full blur-2xl pointer-events-none"></div>
+            <div class="flex flex-col items-center text-center mb-5 relative z-10">
+                <div class="w-16 h-16 rounded-full bg-red-50 dark:bg-slate-700/50 flex items-center justify-center text-red-500 mb-3 shadow-inner"><i class="ph-fill ph-warning-octagon text-3xl animate-pulse"></i></div>
+                <h3 class="text-lg font-black text-slate-900 dark:text-white tracking-tight">入力エラー</h3>
+                <p class="text-xs text-slate-400 font-bold mt-1">必須項目が不足しています</p>
+            </div>
+            <div class="bg-slate-50 dark:bg-slate-900/50 rounded-2xl p-4 mb-5 border border-slate-100 dark:border-slate-700/50">
+                <ul id="custom-alert-list" class="space-y-2"></ul>
+            </div>
+            <button onclick="InputApp.closeCustomAlert()" class="w-full py-3.5 rounded-xl font-bold text-white bg-slate-900 dark:bg-white dark:text-slate-900 hover:opacity-90 shadow-lg shadow-slate-200/50 dark:shadow-none active:scale-95 transition-all">確認して修正</button>
+        </div>
+    </div>
+
+    <script>
+        // 🚀 포트폴리오 데모용 가짜 데이터 설정 (GAS 통신 0%)
+        let MOCK_DATA = [
+            { id: '1', date: '2026-01-08', location: '工具棚 A-01', name: 'インパクトドライバー', email: 'staff1@example.com', dept: '製造部', qty: 3, photo1: 'https://placehold.co/300/3b82f6/white?text=Driver', photo2: '', photo3: '' },
+            { id: '2', date: '2026-01-08', location: '備品ロッカー B', name: '安全靴 (26.5cm)', email: 'staff2@example.com', dept: '資材課', qty: 12, photo1: 'https://placehold.co/300/ef4444/white?text=Shoes', photo2: '', photo3: '' },
+            { id: '3', date: '2026-01-07', location: '消耗品棚 C-3', name: '防塵マスク (N95)', email: 'staff3@example.com', dept: '安全管理', qty: 45, photo1: 'https://placehold.co/300/10b981/white?text=Mask', photo2: '', photo3: '' },
+            { id: '4', date: '2026-01-07', location: '事務室棚', name: 'A4コピー用紙', email: 'admin@example.com', dept: '総務部', qty: 8, photo1: 'https://placehold.co/300/f59e0b/white?text=Paper', photo2: '', photo3: '' },
+            { id: '5', date: '2026-01-06', location: '入り口倉庫', name: 'アルコール消毒液', email: 'admin@example.com', dept: '総務部', qty: 2, photo1: 'https://placehold.co/300/6366f1/white?text=Alcohol', photo2: '', photo3: '' },
+            { id: '6', date: '2026-01-06', location: '消耗品棚 C-1', name: '軍手 (滑り止め付)', email: 'staff1@example.com', dept: '製造部', qty: 120, photo1: 'https://placehold.co/300/64748b/white?text=Gloves', photo2: '', photo3: '' },
+            { id: '7', date: '2026-01-05', location: '工具棚 A-02', name: '六角レンチセット', email: 'staff1@example.com', dept: '製造部', qty: 5, photo1: 'https://placehold.co/300/3b82f6/white?text=Wrench', photo2: '', photo3: '' },
+            { id: '8', date: '2026-01-05', location: '出荷エリア', name: '梱包用テープ', email: 'staff4@example.com', dept: '物流課', qty: 30, photo1: 'https://placehold.co/300/f59e0b/white?text=Tape', photo2: '', photo3: '' },
+            { id: '9', date: '2026-01-04', location: '備品ロッカー A', name: 'ヘルメット (白)', email: 'staff3@example.com', dept: '安全管理', qty: 15, photo1: 'https://placehold.co/300/334155/white?text=Helmet', photo2: '', photo3: '' },
+            { id: '10', date: '2026-01-04', location: 'サーバー室', name: '作業用タブレット', email: 'it_admin@example.com', dept: 'IT推進室', qty: 4, photo1: 'https://placehold.co/300/0f172a/white?text=iPad', photo2: '', photo3: '' }
+        ];
+
+        let MOCK_MASTER = [
+            { name: 'インパクトドライバー', email: 'staff1@example.com', dept: '製造部' },
+            { name: '安全靴 (26.5cm)', email: 'staff2@example.com', dept: '資材課' },
+            { name: '防塵マスク (N95)', email: 'staff3@example.com', dept: '安全管理' }
+        ];
+
+        // Global Utils
+        const GlobalUtils = {
+            debounce: (func, delay = 300) => { let timeoutId = null; return (...args) => { if (timeoutId) clearTimeout(timeoutId); timeoutId = setTimeout(() => { try { func(...args); } catch (err) { console.error(err); } }, delay); }; },
+            escapeHtml: (str) => { if (str === null || str === undefined) return ''; return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;"); },
+            formatNumber: (num) => { try { const locale = (localStorage.getItem('uiLang') || 'ja').replace('_', '-'); return new Intl.NumberFormat(locale).format(num); } catch (e) { return String(num); } },
+            hexToRgba: (hex, alpha = 1) => { try { if (!hex || !/^#([A-Fa-f0-9]{3}){1,2}$/.test(hex)) return `rgba(0,0,0,${alpha})`; let c = hex.substring(1).split(''); if (c.length === 3) c = [c[0],c[0],c[1],c[1],c[2],c[2]]; c = '0x' + c.join(''); return `rgba(${[(c>>16)&255, (c>>8)&255, c&255].join(',')},${alpha})`; } catch (e) { return `rgba(0,0,0,${alpha})`; } },
+            t: (key, ...args) => { return key; }
+        };
+
+        // Theme Manager
+        window.ThemeManager = {
+            init: function() {
+                const savedTheme = localStorage.getItem('theme');
+                const isDark = savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches);
+                if (isDark) document.documentElement.classList.add('dark'); else document.documentElement.classList.remove('dark');
+                this.updateIcon();
+            },
+            toggle: function() {
+                const isDark = document.documentElement.classList.toggle('dark');
+                localStorage.setItem('theme', isDark ? 'dark' : 'light');
+                this.updateIcon();
+            },
+            updateIcon: function() {
+                const icon = document.getElementById('themeIcon');
+                if (icon) icon.className = document.documentElement.classList.contains('dark') ? 'ph-bold ph-sun' : 'ph-bold ph-moon';
+            }
+        };
+        window.ThemeManager.init();
+
+        // Intro Animation
+        const IntroAnim = (() => {
+            let animationFrameId, canvas, ctx, width, height, particles = [];
+            const PARTICLE_COUNT = 60;
+            
+            function init() {
+                canvas = document.getElementById('intro-canvas'); if (!canvas) return;
+                ctx = canvas.getContext('2d');
+                const resize = () => { width = canvas.width = window.innerWidth; height = canvas.height = window.innerHeight; };
+                window.addEventListener('resize', resize); resize();
+
+                class Particle {
+                    constructor() {
+                        this.x = Math.random() * width; this.y = Math.random() * height;
+                        this.vx = (Math.random() - 0.5) * 1.0; this.vy = (Math.random() - 0.5) * 1.0;
+                        this.size = Math.random() * 2 + 1;
+                    }
+                    update() { this.x += this.vx; this.y += this.vy; if (this.x < 0 || this.x > width) this.vx *= -1; if (this.y < 0 || this.y > height) this.vy *= -1; }
+                    draw() {
+                        const isDark = document.documentElement.classList.contains('dark');
+                        ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                        ctx.fillStyle = isDark ? 'rgba(255, 255, 255, 0.5)' : 'rgba(59, 130, 246, 0.5)'; ctx.fill();
+                    }
+                }
+                for (let i = 0; i < PARTICLE_COUNT; i++) particles.push(new Particle());
+                animate();
+            }
+
+            function animate() {
+                const introScreen = document.getElementById('intro-screen');
+                if (!introScreen || introScreen.classList.contains('fade-out')) { cancelAnimationFrame(animationFrameId); return; }
+                ctx.clearRect(0, 0, width, height);
+                const isDark = document.documentElement.classList.contains('dark');
+                ctx.strokeStyle = isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(59, 130, 246, 0.08)';
+                for (let i = 0; i < particles.length; i++) {
+                    const p1 = particles[i]; p1.update(); p1.draw();
+                    for (let j = i + 1; j < particles.length; j++) {
+                        const p2 = particles[j]; const dx = p1.x - p2.x, dy = p1.y - p2.y, dist = Math.sqrt(dx * dx + dy * dy);
+                        if (dist < 150) { ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke(); }
+                    }
+                }
+                animationFrameId = requestAnimationFrame(animate);
+            }
+            return { start: init, stop: () => { const el = document.getElementById('intro-screen'); if(el) el.classList.add('fade-out'); if(animationFrameId) cancelAnimationFrame(animationFrameId); } };
+        })();
+        var IntroNetwork = IntroAnim;
+        document.addEventListener('DOMContentLoaded', IntroAnim.start);
+        setTimeout(() => IntroAnim.stop(), 3000); // 3초 뒤 강제 종료
+
+        // Router
+        const AppRouter = (() => {
+            let currentRoute = 'menu';
+            function init() { switchRoute('menu'); }
+            function switchRoute(route) {
+                if (route === 'dashboard' || route === 'input') {
+                    const spinner = document.getElementById('loadingSpinner');
+                    if (spinner) spinner.classList.remove('hidden');
+                }
+                currentRoute = route;
+                ['view-dashboard', 'view-input', 'view-menu'].forEach(id => { const el = document.getElementById(id); if(el) el.classList.add('hidden'); });
+                document.querySelectorAll('.nav-item').forEach(el => { el.classList.remove('active', 'text-blue-600', 'dark:text-blue-400'); });
+                const bottomNav = document.querySelector('.bottom-nav');
+                if (route === 'menu') { if(bottomNav) bottomNav.style.display = 'none'; } else { if(bottomNav) bottomNav.style.display = 'flex'; }
+                
+                setTimeout(() => {
+                    if (route === 'dashboard') {
+                        document.getElementById('view-dashboard').classList.remove('hidden');
+                        activateTab('nav-dash');
+                        if (typeof DashboardApp !== 'undefined') DashboardApp.init();
+                    } else if (route === 'input') {
+                        document.getElementById('view-input').classList.remove('hidden');
+                        activateTab('nav-input');
+                        if (typeof InputApp !== 'undefined') {
+                            if (!InputApp.isLoaded) InputApp.loadData();
+                            else { const spinner = document.getElementById('loadingSpinner'); if (spinner) spinner.classList.add('hidden'); }
+                        }
+                    } else if (route === 'menu') {
+                        document.getElementById('view-menu').classList.remove('hidden');
+                        const spinner = document.getElementById('loadingSpinner'); if (spinner) spinner.classList.add('hidden');
+                    }
+                    window.scrollTo(0, 0);
+                }, 10);
+            }
+            function activateTab(id) { const nav = document.getElementById(id); if(nav) nav.classList.add('active', 'text-blue-600', 'dark:text-blue-400'); }
+            return { init, switch: switchRoute };
+        })();
+        
+        function toggleSearch(view, show) {
+            let barId = view === 'input' ? 'input-search-bar' : null;
+            let inputId = view === 'input' ? 'input-search' : null;
+            if(!barId) return;
+            const bar = document.getElementById(barId); const input = document.getElementById(inputId);
+            if (show) { bar.classList.remove('translate-x-full'); input.focus(); }
+            else { bar.classList.add('translate-x-full'); input.value = ''; if(view === 'input') InputApp.filterList(''); }
+        }
+
+        // Input App (Mock Version)
+        const InputApp = (() => {
+            let globalData = [], masterData = [];
+            let isLoaded = false;
+            let editedFiles = { file1: null, file2: null, file3: null };
+            let currentTargetFileId = null, pendingDeleteId = null;
+            let videoStream = null, isScanning = false, sessionUploadCount = 0;
+            let currentDrawingFileId = null, canvas, ctx, isDrawing = false, drawingImg = new Image(), currentTool = 'pen', startX, startY, snapshot, history = [];
+            let currentRenderCount = 10; const RENDER_INCREMENT = 10; 
+
+            function init() { loadData(); setupEventListeners(); }
+            function setupEventListeners() {
+                document.addEventListener('click', function(e) {
+                    if (!e.target.closest('#form-name') && !e.target.closest('#name-suggestions')) { 
+                        const list = document.getElementById('name-suggestions'); if(list) list.classList.add('hidden'); 
+                    }
+                });
+                const inputs = document.querySelectorAll('#dataForm input, #dataForm select');
+                inputs.forEach(input => { input.addEventListener('focus', function() { setTimeout(() => { this.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 300); }); });
+            }
+
+            function showCustomAlert(missingFields) {
+                const modal = document.getElementById('custom-alert-modal'); const list = document.getElementById('custom-alert-list'); const innerCard = modal.firstElementChild;
+                if (!modal || !list) { alert("Missing: " + missingFields.map(f => f.label).join(', ')); return; }
+                list.innerHTML = missingFields.map(f => `<li class="flex items-center gap-3 text-sm font-bold text-slate-700 dark:text-slate-200"><span class="flex items-center justify-center w-5 h-5 rounded-full bg-red-100 dark:bg-red-900/30 text-red-500 text-[10px]"><i class="ph-bold ph-x"></i></span>${f.label}</li>`).join('');
+                modal.classList.remove('hidden'); setTimeout(() => { modal.classList.remove('opacity-0'); innerCard.classList.remove('scale-95'); innerCard.classList.add('scale-100'); }, 10);
+                if (navigator.vibrate) navigator.vibrate(200); 
+            }
+            function closeCustomAlert() {
+                const modal = document.getElementById('custom-alert-modal'); if (!modal) return; const innerCard = modal.firstElementChild;
+                modal.classList.add('opacity-0'); innerCard.classList.remove('scale-100'); innerCard.classList.add('scale-95');
+                setTimeout(() => { modal.classList.add('hidden'); }, 300);
+            }
+
+            // ★ 통신 딜레이 제로: Mock Data 로드
+            function loadData() {
+                const spinner = document.getElementById('loadingSpinner');
+                if(spinner) spinner.classList.remove('hidden');
+                
+                setTimeout(() => {
+                    globalData = [...MOCK_DATA].sort((a, b) => new Date(b.date) - new Date(a.date));
+                    masterData = [...MOCK_MASTER]; 
+                    currentRenderCount = RENDER_INCREMENT; 
+                    renderGroupedList(globalData);
+                    isLoaded = true;
+                    if(spinner) spinner.classList.add('hidden');
+                }, 100);
+            }
+
+            function renderGroupedList(data, append = false) {
+                const container = document.getElementById('input-list-container');
+                if (!append) container.innerHTML = "";
+                const oldBtn = document.getElementById('btn-load-more-input'); if(oldBtn) oldBtn.remove();
+                if(!data || data.length === 0) { container.innerHTML = `<div class="text-center py-16 text-slate-400 flex flex-col items-center gap-3"><i class="ph-duotone ph-ghost text-4xl opacity-50"></i><span class="text-sm font-medium">データがありません</span></div>`; return; }
+
+                const groupedByDate = data.reduce((acc, item) => { const dateKey = item.date ? String(item.date).substring(0, 10) : '日付なし'; if (!acc[dateKey]) acc[dateKey] = []; acc[dateKey].push(item); return acc; }, {});
+                const sortedDates = Object.keys(groupedByDate).sort().reverse();
+                const totalDates = sortedDates.length; const existingGroups = container.querySelectorAll('details.group').length; const startIdx = append ? existingGroups : 0; const targetDates = sortedDates.slice(startIdx, currentRenderCount);
+
+                targetDates.forEach(date => {
+                    const dateItems = groupedByDate[date]; const todayStr = new Date().toISOString().slice(0, 10); const isOpen = (date === todayStr) ? 'open' : ''; 
+                    let dayName = ''; try { dayName = ['日', '月', '火', '水', '木', '金', '土'][new Date(date).getDay()]; } catch(e){}
+
+                    const groupedByLocation = dateItems.reduce((acc, item) => { const locKey = item.location || '場所未定'; if (!acc[locKey]) acc[locKey] = []; acc[locKey].push(item); return acc; }, {});
+                    const sortedLocations = Object.keys(groupedByLocation).sort();
+                    const locationHtml = sortedLocations.map(loc => {
+                        const locItems = groupedByLocation[loc]; locItems.sort((a, b) => (parseInt(b.qty) || 0) - (parseInt(a.qty) || 0));
+                        const itemsHtml = locItems.map(item => createItemHTML(item)).join('');
+                        return `<div class="pl-3 pr-2 py-2"><details open class="group/loc"><summary class="flex items-center justify-between cursor-pointer list-none mb-2"><div class="flex items-center gap-2 text-slate-500 dark:text-slate-400"><i class="ph-fill ph-map-pin text-blue-500"></i><span class="text-xs font-bold truncate max-w-[200px]">${loc}</span><span class="bg-slate-100 dark:bg-slate-700 text-[10px] px-1.5 py-0.5 rounded-full font-bold text-slate-500 dark:text-slate-300">${locItems.length}</span></div><i class="ph-bold ph-caret-down text-xs text-slate-300 transition-transform group-open/loc:rotate-180"></i></summary><div class="space-y-2 pl-2 border-l-2 border-slate-100 dark:border-slate-800">${itemsHtml}</div></details></div>`;
+                    }).join('');
+
+                    const groupHtml = `<details ${isOpen} class="group bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 last:border-0 animate-fade-in"><summary class="sticky top-0 z-20 bg-slate-50 dark:bg-slate-800/50 px-4 py-3 flex justify-between items-center cursor-pointer select-none backdrop-blur-sm transition-colors hover:bg-slate-100 dark:hover:bg-slate-700/50"><h3 class="font-bold text-sm text-slate-700 dark:text-slate-200">${date} <span class="text-xs font-normal opacity-70 ml-1">(${dayName || '-'})</span></h3><div class="flex items-center gap-2"><span class="bg-white dark:bg-slate-700 px-2 py-0.5 rounded-md text-xs font-bold text-slate-500 shadow-sm border border-slate-200 dark:border-slate-600">${dateItems.length}</span><i class="ph-bold ph-caret-down text-slate-400 transition-transform group-open:rotate-180"></i></div></summary><div class="divide-y divide-slate-50 dark:divide-slate-800/50 pb-2">${locationHtml}</div></details>`;
+                    container.insertAdjacentHTML('beforeend', groupHtml);
+                });
+
+                if (currentRenderCount < totalDates) {
+                    const btnHtml = `<div id="btn-load-more-input" class="py-4 text-center"><button onclick="InputApp.loadMoreItems()" class="text-sm font-bold text-blue-500 hover:text-blue-600 bg-blue-50 dark:bg-blue-900/20 px-6 py-3 rounded-xl transition-colors">もっと見る (${totalDates - currentRenderCount}日分)</button></div>`;
+                    container.insertAdjacentHTML('beforeend', btnHtml);
+                }
+            }
+
+            function loadMoreItems() {
+                currentRenderCount += RENDER_INCREMENT;
+                const searchVal = document.getElementById('input-search').value;
+                let dataToRender = globalData;
+                if (searchVal) { const lower = searchVal.toLowerCase(); dataToRender = globalData.filter(i => i.name.toLowerCase().includes(lower) || i.location.toLowerCase().includes(lower)); }
+                renderGroupedList(dataToRender, true);
+            }
+
+            function createItemHTML(item) {
+                const itemId = item.id;
+                return `
+                    <div class="bg-white dark:bg-slate-800 rounded-xl p-3 flex gap-3 shadow-sm border border-slate-100 dark:border-slate-700 items-center animate-fade-in relative hover:border-blue-200 dark:hover:border-blue-800 transition-colors">
+                        <div class="flex flex-col items-center justify-center min-w-[50px] bg-slate-50 dark:bg-slate-700/50 rounded-lg py-1 px-2 border border-slate-100 dark:border-slate-600">
+                            <span class="text-lg font-black text-blue-600 dark:text-blue-400 leading-none">${item.qty}</span>
+                            <span class="text-[9px] text-slate-400 font-bold mt-0.5">数量</span>
+                        </div>
+                        <div class="flex-1 min-w-0 cursor-pointer px-1" onclick="InputApp.openPanel('detail', '${itemId}')">
+                            <div class="flex items-center gap-2">
+                                <span class="text-sm font-bold text-slate-900 dark:text-white truncate">${item.name || '名称なし'}</span>
+                                <span class="text-slate-300 dark:text-slate-600 text-xs">|</span>
+                                <span class="text-[11px] font-medium text-slate-500 dark:text-slate-400 truncate mt-0.5">${item.dept || '-'}</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-1 shrink-0">
+                            <button onclick="InputApp.openPanel('edit', '${itemId}')" class="flex flex-col items-center justify-center w-10 h-11 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-700 transition-colors">
+                                <i class="ph-bold ph-pencil-simple text-lg"></i><span class="text-[8px] font-bold mt-0.5">修正</span>
+                            </button>
+                            <button onclick="InputApp.requestDelete('${itemId}', event)" class="flex flex-col items-center justify-center w-10 h-11 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors">
+                                <i class="ph-bold ph-trash text-lg"></i><span class="text-[8px] font-bold mt-0.5">削除</span>
+                            </button>
+                        </div>
+                    </div>`;
+            }
+
+            function openPanel(mode, id) {
+                const detailView = document.getElementById('detail-view'), dataForm = document.getElementById('dataForm'), editBtn = document.getElementById('btn-edit-mode'), formFooter = document.getElementById('form-footer'), panelTitle = document.getElementById('panel-title');
+                document.getElementById('dataForm').reset(); document.getElementById('form-id').value = "";
+                ['preview1', 'preview2', 'preview3'].forEach(pid => { const p = document.getElementById(pid); if(p) p.classList.add('hidden'); });
+                ['btn-draw-file1', 'btn-draw-file2', 'btn-draw-file3'].forEach(bid => { const b = document.getElementById(bid); if(b) b.classList.add('hidden'); });
+                editedFiles = { file1: null, file2: null, file3: null };
+
+                if (mode === 'create') {
+                    if(panelTitle) panelTitle.innerText = "新規登録";
+                    if(detailView) detailView.style.display = 'none'; if(editBtn) editBtn.style.display = 'none';
+                    if(dataForm) { dataForm.classList.remove('hidden'); dataForm.style.display = 'block'; }
+                    if(formFooter) { formFooter.classList.remove('hidden'); formFooter.style.display = 'block'; updateCounterDisplay(); }
+                    const today = new Date(); document.getElementById('form-date').value = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+                } else if (mode === 'edit') {
+                    if(panelTitle) panelTitle.innerText = "内容の編集";
+                    if(detailView) detailView.style.display = 'none'; if(editBtn) editBtn.style.display = 'none'; 
+                    if(dataForm) { dataForm.classList.remove('hidden'); dataForm.style.display = 'block'; }
+                    if(formFooter) { formFooter.classList.remove('hidden'); formFooter.style.display = 'block'; }
+                    const counterEl = document.getElementById('session-counter-display'); if(counterEl) counterEl.style.display = 'none';
+                    const item = globalData.find(i => String(i.id) === String(id)); if (item) fillForm(item);
+                } else { 
+                    if(panelTitle) panelTitle.innerText = "詳細情報";
+                    if(detailView) { detailView.classList.remove('hidden'); detailView.style.display = 'block'; }
+                    if(editBtn) { editBtn.classList.remove('hidden'); editBtn.style.display = 'flex'; }
+                    if(dataForm) { dataForm.classList.add('hidden'); dataForm.style.display = 'none'; }
+                    if(formFooter) { formFooter.classList.add('hidden'); formFooter.style.display = 'none'; }
+                    const item = globalData.find(i => String(i.id) === String(id)); if (item) { fillDetailView(item); fillForm(item); }
+                }
+                const overlay = document.getElementById('form-overlay'); const panel = document.getElementById('form-panel');
+                overlay.style.display = 'block'; setTimeout(() => { overlay.classList.add('open'); panel.classList.add('open'); }, 10);
+            }
+
+            function updateCounterDisplay() {
+                const counterEl = document.getElementById('session-counter-display');
+                if(counterEl) { counterEl.style.display = 'inline-block'; counterEl.innerText = `今回: ${sessionUploadCount}件`; }
+            }
+            function enableEditMode() {
+                document.getElementById('panel-title').innerText = "内容の編集";
+                document.getElementById('detail-view').style.display = 'none'; document.getElementById('btn-edit-mode').style.display = 'none';
+                document.getElementById('dataForm').classList.remove('hidden'); document.getElementById('dataForm').style.setProperty('display', 'block', 'important');
+                document.getElementById('form-footer').classList.remove('hidden'); document.getElementById('form-footer').style.setProperty('display', 'block', 'important');
+                const counterEl = document.getElementById('session-counter-display'); if(counterEl) counterEl.style.display = 'none';
+            }
+            function fillDetailView(item) {
+                document.getElementById('view-date').innerText = item.date ? String(item.date).substring(0, 10) : '-';
+                document.getElementById('view-name').innerText = item.name || '-'; document.getElementById('view-location').innerText = `${item.location || '-'} / ${item.dept || '-'}`;
+                document.getElementById('view-qty').innerText = item.qty || '0';
+                const photoContainer = document.getElementById('detail-photos'); photoContainer.innerHTML = '';
+                const photos = [item.photo1, item.photo2, item.photo3].filter(Boolean);
+                if (photos.length === 0) {
+                    photoContainer.className = "w-full"; photoContainer.innerHTML = '<div class="w-full py-8 bg-slate-100 dark:bg-slate-800 rounded-2xl text-center text-slate-400 text-xs font-bold border border-dashed border-slate-300 dark:border-slate-700">写真がありません</div>';
+                } else {
+                    let gridClass = "grid gap-2 w-full"; if (photos.length === 1) gridClass = "flex justify-center"; else if (photos.length === 2) gridClass += " grid-cols-2"; else gridClass += " grid-cols-3";
+                    photoContainer.className = gridClass;
+                    photos.forEach(src => {
+                        const img = document.createElement('img'); img.src = src;
+                        let imgClass = "object-cover rounded-xl shadow-sm border-2 border-white dark:border-slate-800 bg-slate-200 aspect-square cursor-pointer";
+                        if(photos.length === 1) imgClass += " w-48 h-48 shadow-md"; else imgClass += " w-full h-auto";
+                        img.className = imgClass; img.onclick = function() { InputApp.openGallery(item.id); }; photoContainer.appendChild(img);
+                    });
+                }
+            }
+            function fillForm(item) {
+                document.getElementById('form-id').value = item.id || ""; document.getElementById('form-date').value = item.date ? String(item.date).substring(0, 10) : "";
+                document.getElementById('form-name').value = item.name || ""; document.getElementById('form-location').value = item.location || "";
+                document.getElementById('form-qty').value = item.qty || ""; document.getElementById('form-email').value = item.email || "";
+                const deptSelect = document.getElementById('form-dept');
+                if (item.dept) {
+                    let exists = Array.from(deptSelect.options).some(o => o.value === item.dept);
+                    if (!exists) { const opt = document.createElement('option'); opt.value = item.dept; opt.text = item.dept; deptSelect.add(opt); }
+                    deptSelect.value = item.dept;
+                }
+                document.getElementById('form-existingPhoto1').value = item.photo1 || ""; document.getElementById('form-existingPhoto2').value = item.photo2 || ""; document.getElementById('form-existingPhoto3').value = item.photo3 || "";
+                if (item.photo1) setPreview('preview1', 'box-file1', item.photo1, 'btn-draw-file1');
+                if (item.photo2) setPreview('preview2', 'box-file2', item.photo2, 'btn-draw-file2');
+                if (item.photo3) setPreview('preview3', 'box-file3', item.photo3, 'btn-draw-file3');
+            }
+            function closePanel() {
+                const overlay = document.getElementById('form-overlay'); const panel = document.getElementById('form-panel');
+                overlay.classList.remove('open'); panel.classList.remove('open'); setTimeout(() => { overlay.style.display = 'none'; }, 300);
+            }
+
+            function setPreview(imgId, boxId, src, btnId) {
+                const img = document.getElementById(imgId); img.src = src; img.classList.remove('hidden');
+                if(btnId) document.getElementById(btnId).classList.remove('hidden'); else if(imgId === 'preview1') document.getElementById('btn-draw-file1').classList.remove('hidden'); 
+            }
+
+            function handleFileSelect(input, imgId, boxId) {
+                if (input.files && input.files[0]) {
+                    const file = input.files[0]; editedFiles[input.id] = null;
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        const img = document.getElementById(imgId); img.src = e.target.result; img.classList.remove('hidden');
+                        const btn = document.getElementById('btn-draw-' + input.id); if(btn) btn.classList.remove('hidden'); else document.getElementById('btn-draw-file1').classList.remove('hidden'); 
+                    }
+                    reader.readAsDataURL(file);
+                }
+            }
+
+            // ★ 통신 딜레이 제로: Mock Data 제출
+            function submitData() {
+                const requiredFields = [ { id: 'form-date', label: '日付 (Date)' }, { id: 'form-name', label: '名前 (Name)' }, { id: 'form-location', label: '場所 (Location)' }, { id: 'form-qty', label: '数量 (Qty)' } ];
+                const missing = requiredFields.filter(field => { const el = document.getElementById(field.id); return !el.value || el.value.trim() === ""; });
+                if (missing.length > 0) { showCustomAlert(missing); return; }
+                
+                const spinner = document.getElementById('loadingSpinner');
+                if(spinner) spinner.classList.remove('hidden');
+                
+                const form = {
+                    id: document.getElementById('form-id').value, date: document.getElementById('form-date').value,
+                    name: document.getElementById('form-name').value, dept: document.getElementById('form-dept').value,
+                    location: document.getElementById('form-location').value, qty: document.getElementById('form-qty').value,
+                    email: document.getElementById('form-email').value, 
+                    photo1: editedFiles['file1'] || document.getElementById('form-existingPhoto1').value || document.getElementById('preview1').src || "",
+                    photo2: editedFiles['file2'] || document.getElementById('form-existingPhoto2').value || document.getElementById('preview2').src || "",
+                    photo3: editedFiles['file3'] || document.getElementById('form-existingPhoto3').value || document.getElementById('preview3').src || ""
+                };
+                
+                // 가짜 통신 딜레이
+                setTimeout(() => {
+                    if(spinner) spinner.classList.add('hidden');
+                    
+                    if (!form.id) {
+                        form.id = "MOCK_" + Date.now().toString();
+                        MOCK_DATA.push(form);
+                    } else {
+                        const idx = MOCK_DATA.findIndex(item => String(item.id) === String(form.id));
+                        if (idx > -1) MOCK_DATA[idx] = form;
+                    }
+                    
+                    alert("保存しました"); 
+                    loadData(); 
+                    if(typeof DashboardApp !== 'undefined' && DashboardApp.init) DashboardApp.init();
+
+                    const isContinuous = document.getElementById('continuous-mode').checked;
+                    const isEditMode = form.id && !form.id.startsWith("MOCK_"); 
+
+                    if (isContinuous && !isEditMode) {
+                        document.getElementById('form-name').value = ""; document.getElementById('form-qty').value = "";
+                        document.getElementById('form-location').value = ""; document.getElementById('form-dept').value = ""; document.getElementById('form-name').focus(); 
+                        ['preview1', 'preview2', 'preview3'].forEach(pid => { const p = document.getElementById(pid); if(p) { p.classList.add('hidden'); p.src = ""; }});
+                        ['file1', 'file2', 'file3'].forEach(fid => document.getElementById(fid).value = "");
+                        ['btn-draw-file1', 'btn-draw-file2', 'btn-draw-file3'].forEach(bid => document.getElementById(bid).classList.add('hidden'));
+                        editedFiles = { file1: null, file2: null, file3: null };
+                        sessionUploadCount++;
+                        updateCounterDisplay();
+                    } else {
+                        InputApp.closePanel(); 
+                    }
+                }, 300);
+            }
+
+            // ★ 통신 딜레이 제로: Mock Data 갤러리 연출
+            function openGallery(target) {
+                let item = typeof target === 'string' ? globalData.find(i => String(i.id) === String(target)) : target;
+                if (!item) return;
+
+                const container = document.getElementById('galleryContainer'); container.innerHTML = "";
+                const loc = item.location || item.dept || "", name = item.name || "";
+                document.getElementById('galleryTitle').innerText = (loc && name) ? `${loc} - ${name}` : (loc || name || "詳細写真");
+
+                const photos = [item.photo1, item.photo2, item.photo3].filter(Boolean);
+                document.getElementById('galleryOverlay').style.display = 'flex'; document.getElementById('galleryOverlay').classList.remove('hidden');
+                
+                let validCount = 0;
+                photos.forEach((url) => {
+                    validCount++;
+                    const wrapper = document.createElement('div'); wrapper.className = "w-full bg-slate-900/50 rounded-2xl flex justify-center items-center min-h-[350px] relative shrink-0 snap-center shadow-2xl";
+                    const img = document.createElement('img'); img.className = "max-w-full max-h-[70vh] rounded-xl shadow-lg object-contain";
+                    img.src = url; 
+                    wrapper.appendChild(img); container.appendChild(wrapper);
+                });
+                if(validCount === 0) container.innerHTML = "<div class='text-white mt-20 opacity-50'>写真がありません</div>";
+            }
+            function closeGallery(e) {
+                if (e.target.id === 'galleryOverlay' || e.target.closest('button')) {
+                    document.getElementById('galleryContainer').innerHTML = "";
+                    const overlay = document.getElementById('galleryOverlay'); overlay.classList.add('hidden'); overlay.classList.remove('flex');
+                }
+            }
+
+            function requestDelete(id, event) {
+                if(event) event.stopPropagation(); pendingDeleteId = id;
+                const modal = document.getElementById('delete-modal'); modal.classList.remove('hidden');
+                setTimeout(() => { modal.classList.remove('opacity-0'); modal.firstElementChild.classList.remove('scale-95'); modal.firstElementChild.classList.add('scale-100'); }, 10);
+            }
+            function closeDeleteModal() {
+                const modal = document.getElementById('delete-modal'); modal.classList.add('opacity-0'); modal.firstElementChild.classList.remove('scale-100'); modal.firstElementChild.classList.add('scale-95');
+                setTimeout(() => { modal.classList.add('hidden'); pendingDeleteId = null; }, 300);
+            }
+
+            // ★ 통신 딜레이 제로: Mock Data 삭제
+            function confirmDelete() {
+                if (!pendingDeleteId) return; const id = pendingDeleteId; closeDeleteModal(); 
+                MOCK_DATA = MOCK_DATA.filter(item => String(item.id) !== String(id));
+                globalData = globalData.filter(item => String(item.id) !== String(id));
+                const searchVal = document.getElementById('input-search') ? document.getElementById('input-search').value : "";
+                if(searchVal) filterList(searchVal); else renderGroupedList(globalData);
+            }
+            
+            function filterList(q) {
+                const lower = q.toLowerCase(); const filtered = globalData.filter(i => (i.name||'').toLowerCase().includes(lower) || (i.location||'').toLowerCase().includes(lower));
+                currentRenderCount = 10; renderGroupedList(filtered);
+            }
+            
+            function openSourceSelect(fileId) { currentTargetFileId = fileId; const overlay = document.getElementById('sourceSelectOverlay'); overlay.classList.remove('hidden'); overlay.classList.add('flex'); setTimeout(()=>overlay.classList.remove('opacity-0'),10); }
+            function closeSourceSelect() { const overlay = document.getElementById('sourceSelectOverlay'); overlay.classList.add('opacity-0'); setTimeout(()=>{ overlay.classList.add('hidden'); overlay.classList.remove('flex'); },300); currentTargetFileId = null; }
+            function confirmSource(type) { if (!currentTargetFileId) return; const input = document.getElementById(currentTargetFileId); if (type === 'camera') input.setAttribute('capture', 'environment'); else input.removeAttribute('capture'); closeSourceSelect(); setTimeout(() => { input.click(); }, 100); }
+            
+            function handleNameInput(input) {
+                const val = input.value.toLowerCase().trim(); const listEl = document.getElementById('name-suggestions');
+                if (val.length < 1) { listEl.classList.add('hidden'); return; }
+                const matches = masterData.filter(p => p.name && p.name.toLowerCase().includes(val));
+                if (matches.length === 0) { listEl.classList.add('hidden'); return; }
+                listEl.innerHTML = matches.map(p => `<li class="px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer text-sm text-slate-800 dark:text-slate-200 border-b border-slate-100 dark:border-slate-700 last:border-0" onclick="InputApp.selectName('${p.name}', '${p.email}', '${p.dept}')"><div class="font-bold text-base">${p.name}</div><div class="text-xs text-slate-400 flex justify-between mt-1"><span>${p.dept}</span></div></li>`).join('');
+                listEl.classList.remove('hidden');
+            }
+            function selectName(name, email, dept) {
+                document.getElementById('form-name').value = name; document.getElementById('form-email').value = email;
+                const deptSelect = document.getElementById('form-dept');
+                let optionExists = Array.from(deptSelect.options).some(opt => opt.value === dept);
+                if (!optionExists) { const opt = document.createElement('option'); opt.value = dept; opt.text = dept; deptSelect.add(opt); }
+                deptSelect.value = dept; document.getElementById('form-location').value = "D-A-01"; // Mock Location logic
+                document.getElementById('name-suggestions').classList.add('hidden');
+            }
+
+            function startQRScanner() {
+                const overlay = document.getElementById('qr-overlay'); const video = document.getElementById('qr-video');
+                if (!overlay || !video) return; overlay.classList.remove('hidden'); overlay.classList.add('flex'); isScanning = true;
+                navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }).then(stream => { videoStream = stream; video.srcObject = stream; video.setAttribute("playsinline", true); video.play(); requestAnimationFrame(scanTick); }).catch(err => { alert("カメラ起動エラー: " + err); stopQRScanner(); });
+            }
+            function scanTick() {
+                if (!isScanning) return; const video = document.getElementById('qr-video'); const canvas = document.getElementById('qr-canvas');
+                if (!video || !canvas) return; const context = canvas.getContext('2d');
+                if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                    canvas.height = video.videoHeight; canvas.width = video.videoWidth; context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+                    if(typeof jsQR !== 'undefined') {
+                        const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" });
+                        if (code) { document.getElementById('form-location').value = code.data; stopQRScanner(); return; }
+                    }
+                }
+                requestAnimationFrame(scanTick);
+            }
+            function stopQRScanner() {
+                isScanning = false; const overlay = document.getElementById('qr-overlay');
+                if (overlay) { overlay.classList.add('hidden'); overlay.classList.remove('flex'); }
+                if (videoStream) { videoStream.getTracks().forEach(track => track.stop()); videoStream = null; }
+            }
+
+            // Drawing 
+            function openDrawing(fileId, event) {
+                if(event) event.stopPropagation();
+                const previewId = 'preview' + fileId.replace('file', ''); const previewImg = document.getElementById(previewId);
+                if (!previewImg || !previewImg.src || previewImg.classList.contains('hidden') || previewImg.src === "") { alert("編集する写真がありません"); return; }
+                currentDrawingFileId = fileId;
+                const spinner = document.getElementById('loadingSpinner'); if(spinner) spinner.classList.remove('hidden');
+                
+                // 가짜 딜레이 후 바로 캔버스 열기
+                setTimeout(() => {
+                    if(spinner) spinner.classList.add('hidden');
+                    initDrawingCanvas(previewImg.src);
+                }, 200);
+            }
+            function initDrawingCanvas(src) {
+                const overlay = document.getElementById('drawingOverlay'); canvas = document.getElementById('drawCanvas'); ctx = canvas.getContext('2d');
+                overlay.classList.remove('hidden'); overlay.classList.add('flex'); history = [];
+                drawingImg.crossOrigin = "Anonymous"; // CORS 문제 방지
+                drawingImg.onload = () => { canvas.width = drawingImg.width; canvas.height = drawingImg.height; ctx.drawImage(drawingImg, 0, 0); setTool('pen'); setPenColor('red'); };
+                drawingImg.src = src; setupDrawingEvents();
+            }
+            function closeDrawing() { const overlay = document.getElementById('drawingOverlay'); overlay.classList.add('hidden'); overlay.classList.remove('flex'); currentDrawingFileId = null; }
+            function setupDrawingEvents() { canvas.onmousedown = startDraw; canvas.ontouchstart = startDraw; canvas.onmousemove = draw; canvas.ontouchmove = draw; canvas.onmouseup = stopDraw; canvas.ontouchend = stopDraw; }
+            function startDraw(e) { isDrawing = true; history.push(ctx.getImageData(0, 0, canvas.width, canvas.height)); ctx.beginPath(); const pos = getPos(e); startX = pos.x; startY = pos.y; if (currentTool === 'pen') { ctx.moveTo(startX, startY); } else { snapshot = ctx.getImageData(0, 0, canvas.width, canvas.height); } }
+            function draw(e) { if (!isDrawing) return; e.preventDefault(); const pos = getPos(e); if (currentTool === 'pen') { ctx.lineWidth = Math.max(5, canvas.width / 150); ctx.lineCap = 'round'; ctx.lineTo(pos.x, pos.y); ctx.stroke(); } else { ctx.putImageData(snapshot, 0, 0); ctx.lineWidth = Math.max(8, canvas.width / 100); ctx.beginPath(); if (currentTool === 'rect') { const w = pos.x - startX; const h = pos.y - startY; ctx.strokeRect(startX, startY, w, h); } else if (currentTool === 'circle') { const centerX = startX + (pos.x - startX) / 2; const centerY = startY + (pos.y - startY) / 2; const radiusX = Math.abs(pos.x - startX) / 2; const radiusY = Math.abs(pos.y - startY) / 2; ctx.ellipse(centerX, centerY, radiusX, radiusY, 0, 0, 2 * Math.PI); ctx.stroke(); } } }
+            function stopDraw() { isDrawing = false; }
+            function undoDrawing() { if (history.length > 0) { const lastState = history.pop(); ctx.putImageData(lastState, 0, 0); } }
+            function getPos(e) { const rect = canvas.getBoundingClientRect(); let clientX, clientY; if (e.touches && e.touches.length > 0) { clientX = e.touches[0].clientX; clientY = e.touches[0].clientY; } else { clientX = e.clientX; clientY = e.clientY; } return { x: (clientX - rect.left) * (canvas.width / rect.width), y: (clientY - rect.top) * (canvas.height / rect.height) }; }
+            function setTool(tool) { currentTool = tool; ['tool-pen', 'tool-rect', 'tool-circle'].forEach(id => { const btn = document.getElementById(id); btn.classList.remove('bg-slate-700', 'text-white', 'ring-2', 'ring-blue-500'); btn.classList.add('bg-slate-800', 'text-slate-400'); }); const activeBtn = document.getElementById('tool-' + tool); activeBtn.classList.remove('bg-slate-800', 'text-slate-400'); activeBtn.classList.add('bg-slate-700', 'text-white', 'ring-2', 'ring-blue-500'); }
+            function setPenColor(color) { const redBtn = document.getElementById('color-red'), yellowBtn = document.getElementById('color-yellow'); redBtn.classList.remove('ring-2', 'ring-red-500/50', 'opacity-50'); yellowBtn.classList.remove('ring-2', 'ring-yellow-400/50', 'opacity-50'); if(color === 'red') { ctx.strokeStyle = '#EF4444'; redBtn.classList.add('ring-2', 'ring-red-500/50'); yellowBtn.classList.add('opacity-50'); } else if(color === 'yellow') { ctx.strokeStyle = '#FACC15'; yellowBtn.classList.add('ring-2', 'ring-yellow-400/50'); redBtn.classList.add('opacity-50'); } }
+            function clearCanvas() { history.push(ctx.getImageData(0, 0, canvas.width, canvas.height)); ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.drawImage(drawingImg, 0, 0); }
+            function saveDrawing() { if (!currentDrawingFileId) return; try{ const dataUrl = canvas.toDataURL('image/jpeg', 0.8); const previewId = 'preview' + currentDrawingFileId.replace('file', ''); document.getElementById(previewId).src = dataUrl; editedFiles[currentDrawingFileId] = dataUrl; }catch(e){ alert("CORS制限により保存できません。端末の画像をアップロードしてください。"); } closeDrawing(); }
+
+            return { init, loadData, filterList, openPanel, closePanel, submitData, openGallery, closeGallery, handleNameInput, selectName, isLoaded, handleFileSelect, openSourceSelect, closeSourceSelect, confirmSource, requestDelete, confirmDelete, closeDeleteModal, enableEditMode, startQRScanner, stopQRScanner, loadMoreItems, openDrawing, closeDrawing, saveDrawing, setPenColor, clearCanvas, setTool, undoDrawing, showCustomAlert, closeCustomAlert };
+        })();
+
+        // Dashboard App (Mock Version)
+        const DashboardApp = (() => {
+            const CONFIG = { KEYS: { NAME: 'name', DEPT: 'dept', LOCATION: 'location', QUANTITY: 'qty', ID: 'id', P1:'photo1', P2:'photo2', P3:'photo3' } };
+            const stateStore = { allData: [], historicalData: { labels: [], values: [] }, lastMonthData: [], filteredData: [], currentFilteredLastMonthData: [], uiLang: 'ja', filters: { selectedMonth: null, selectedLocation: 'all', searchQuery: '', selectedDept: null, sortKey: 'quantity_desc' }, chartState: { isDrilledDown: false, drillDownDept: null }, thresholds: { warning: 20 }, departmentColorMap: {}, isLoading: true, error: null, groupedDataCache: {} };
+            const dom = {}; let departmentChartInstance = null, comparisonChartInstance = null; const chartObservers = new Map(); 
+            
+            const utils = {
+                t: (key, ...args) => { 
+                    const dict = { 'kpiTitle':'概要', 'summaryTitle':'サマリー', 'warningTitle':'警告', 'comparisonChartTitle':'トレンド', 'deptChartTitle':'部署別', 'detailsTitle':'詳細', 'loadMore':'もっと見る', 'kpiTotalQuantity':'総数量', 'kpiTrend':'前月比', 'kpiLocations':'保管場所', 'kpiDepartments':'部署', 'trendIncrease':'増加', 'trendDecrease':'減少', 'trendNoChange':'なし', 'unclassified':'未分類', 'allLocations':'全場所' };
+                    if(key === 'summaryTotal') return `総数 <strong>${args[0]}</strong> 個。`;
+                    if(key === 'summaryLocations') return `全 <strong>${args[0]}</strong> 箇所、<strong>${args[1]}</strong> 最多。`;
+                    if(key === 'summaryDepts') return `<strong>${args[0]}</strong> 最多管理。`;
+                    if(key === 'summaryTrend') return `前月比 <span class="font-bold ${args[0].color}">${args[0].percentage}%</span> ${args[1]}。`;
+                    if(key === 'comparisonChartTitleDept') return `${args[0]} 前月比`;
+                    return dict[key] || key; 
+                },
+                debounce: GlobalUtils.debounce, escapeHtml: GlobalUtils.escapeHtml, formatNumber: GlobalUtils.formatNumber, hexToRgba: GlobalUtils.hexToRgba,
+                saveState: () => {}, loadState: () => {},
+                getTrend: (current, last) => { if (last > 0) { const percentage = Number((((current - last) / last) * 100).toFixed(1)); const text = current > last ? utils.t('trendIncrease') : (current < last ? utils.t('trendDecrease') : utils.t('trendNoChange')); const color = current > last ? 'text-red-500' : (current < last ? 'text-green-500' : 'text-slate-400'); return { percentage, text, color, change: current - last }; } return { percentage: 0.0, text: utils.t('trendNoChange'), color: 'text-slate-400', change: 0 }; },
+                getChartSortComparator: (sortKey) => { return (a, b) => b[1] - a[1]; }
+            };
+
+            // ★ 통신 딜레이 제로: Dashboard Mock API
+            const api = {
+                getSheetData: (month) => new Promise((resolve) => {
+                    setTimeout(() => resolve({ 
+                        current: MOCK_DATA, 
+                        historical: { labels: ['11月', '12月', '1月', '2月'], values: [100, 150, 200, 250] },
+                        lastMonthData: MOCK_DATA.map(d => ({...d, qty: Math.max(0, d.qty - 2)})), 
+                        sheetName: month || "2026-02" 
+                    }), 100);
+                }),
+                getSheetNames: () => new Promise((resolve) => {
+                    setTimeout(() => resolve(["2026-02", "2026-01"]), 50);
+                })
+            };
+
+            function cacheDom() { const ids = [ 'submissionDate', 'langSwitcher','monthFilter','searchFilter','warningThreshold','reloadButton', 'exportCsvButton', 'summaryList', 'kpiGrid', 'warningContainer', 'warningTableBody','warningTableHeader', 'departmentChart','deptChartTitle','comparisonChart','comparisonChartTitle', 'locationFilter','dataCardsContainer', 'loadMoreContainer','loadMoreBtn', 'intro-screen' ]; ids.forEach(id => { dom[id] = document.getElementById(id); }); }
+            function setState(partial) { Object.keys(partial).forEach(k => { const newVal = partial[k]; const curVal = stateStore[k]; if (curVal && typeof curVal === 'object' && !Array.isArray(curVal) && newVal && typeof newVal === 'object' && !Array.isArray(newVal)) { stateStore[k] = { ...curVal, ...newVal }; } else { stateStore[k] = newVal; } }); }
+
+            async function fetchData(isRetry = false) {
+                const spinner = document.getElementById('loadingSpinner'); if (spinner) spinner.classList.remove('hidden');
+                if (!isRetry) setState({ isLoading: true, error: null });
+                try {
+                    const data = await api.getSheetData(stateStore.filters.selectedMonth);
+                    if (dom['intro-screen']) { dom['intro-screen'].classList.add('fade-out'); setTimeout(() => { if(typeof IntroNetwork !== 'undefined') IntroNetwork.stop(); }, 1200); }
+                    if (dom.submissionDate) dom.submissionDate.textContent = data.sheetName ? data.sheetName.replace(/-/g, '/') : 'N/A';
+                    
+                    const K = CONFIG.KEYS; const unclassifiedLabel = utils.t('unclassified');
+                    const departments = [...new Set((data.current||[]).map(item => item[K.DEPT] || unclassifiedLabel))];
+                    const newColorMap = { ...stateStore.departmentColorMap };
+                    departments.forEach((dept, i) => { if (!newColorMap[dept]) newColorMap[dept] = ['rgba(59, 130, 246, 0.9)', 'rgba(16, 185, 129, 0.9)', 'rgba(245, 158, 11, 0.9)', 'rgba(239, 68, 68, 0.9)'][i % 4]; });
+                    
+                    setState({ allData: data.current || [], historicalData: data.historical || { labels: [], values: [] }, lastMonthData: data.lastMonthData || [], departmentColorMap: newColorMap, isLoading: false, error: null });
+                    applyFiltersAndRender(); renderComparisonChart(); renderDepartmentChart();
+                } catch (error) { console.error(error); setState({ isLoading: false, error: 'Error' }); render(); } finally { if (spinner) spinner.classList.add('hidden'); }
+            }
+
+            function populateLocationFilterFromData(baseData) {
+                if (!dom.locationFilter) return; const K = CONFIG.KEYS; const locations = [...new Set(baseData.map(item => item[K.LOCATION] || utils.t('unclassified')))].sort();
+                dom.locationFilter.innerHTML = `<option value="all">${utils.t('allLocations')}</option>`;
+                locations.forEach(loc => { dom.locationFilter.insertAdjacentHTML('beforeend', `<option value="${loc}">${loc}</option>`); });
+                dom.locationFilter.value = locations.includes(stateStore.filters.selectedLocation) ? stateStore.filters.selectedLocation : 'all';
+            }
+
+            function applyFiltersAndRender() {
+                const { searchQuery, selectedLocation, selectedDept } = stateStore.filters; const query = (searchQuery || '').toLowerCase().trim(); const K = CONFIG.KEYS; const uc = utils.t('unclassified');
+                let filteredCurrent = stateStore.allData.slice();
+                if (selectedDept) filteredCurrent = filteredCurrent.filter(item => (item[K.DEPT] || uc) === selectedDept);
+                if (query) filteredCurrent = filteredCurrent.filter(item => (item[K.NAME] || '').toLowerCase().includes(query) || (item[K.DEPT] || uc).toLowerCase().includes(query) || (item[K.LOCATION] || uc).toLowerCase().includes(query));
+                populateLocationFilterFromData(filteredCurrent);
+                if (selectedLocation !== 'all') filteredCurrent = filteredCurrent.filter(item => (item[K.LOCATION] || uc) === selectedLocation);
+                
+                let filteredLast = stateStore.lastMonthData.slice();
+                if (selectedDept) filteredLast = filteredLast.filter(item => (item[K.DEPT] || uc) === selectedDept);
+                if (query) filteredLast = filteredLast.filter(item => (item[K.NAME] || '').toLowerCase().includes(query) || (item[K.DEPT] || uc).toLowerCase().includes(query) || (item[K.LOCATION] || uc).toLowerCase().includes(query));
+                if (selectedLocation !== 'all') filteredLast = filteredLast.filter(item => (item[K.LOCATION] || uc) === selectedLocation);
+                
+                setState({ filteredData: filteredCurrent, currentFilteredLastMonthData: filteredLast });
+                render(); 
+            }
+
+            function render() {
+                if (stateStore.isLoading) return;
+                document.querySelectorAll('[data-i18n]').forEach(el => { const text = utils.t(el.dataset.i18n); if (text && el.textContent !== text) el.textContent = text; });
+                renderSummary(); renderKPIs(); renderWarning(); renderGroupedList(stateStore.filteredData);
+            }
+
+            function renderSummary() {
+                if (!dom.summaryList) return; const K = CONFIG.KEYS; const uc = utils.t('unclassified'); const dataSource = stateStore.filteredData; const lastMonthDataSource = stateStore.currentFilteredLastMonthData;
+                const totalQuantity = dataSource.reduce((s, item) => s + (Number(item[K.QUANTITY]) || 0), 0); const lastMonthTotal = lastMonthDataSource.reduce((s, item) => s + (Number(item[K.QUANTITY]) || 0), 0);
+                const trend = utils.getTrend(totalQuantity, lastMonthTotal); const trendText = trend.percentage !== 0.0 ? utils.t('summaryTrend', trend, trend.text) : trend.text;
+                const locations = [...new Set(dataSource.map(item => item[K.LOCATION] || uc))];
+                const topLocation = Object.entries(dataSource.reduce((acc, item) => { const loc = item[K.LOCATION] || uc; acc[loc] = (acc[loc] || 0) + (Number(item[K.QUANTITY]) || 0); return acc; }, {})).sort((a,b)=>b[1]-a[1])[0]?.[0] || 'N/A';
+                const topDept = Object.entries(dataSource.reduce((acc,item)=>{ const dept = item[K.DEPT] || uc; acc[dept] = (acc[dept] || 0) + (Number(item[K.QUANTITY]) || 0); return acc; }, {})).sort((a,b)=>b[1]-a[1])[0]?.[0] || 'N/A';
+                dom.summaryList.innerHTML = `<li class="flex items-start gap-3"><div class="mt-0.5"><i class="ph-fill ph-trend-up text-blue-500"></i></div><span class="leading-relaxed">${utils.t('summaryTotal', utils.formatNumber(totalQuantity))} ${trendText}</span></li><li class="flex items-start gap-3"><div class="mt-0.5"><i class="ph-fill ph-map-pin text-orange-500"></i></div><span class="leading-relaxed">${utils.t('summaryLocations', locations.length, utils.escapeHtml(topLocation))}</span></li><li class="flex items-start gap-3"><div class="mt-0.5"><i class="ph-fill ph-users text-emerald-500"></i></div><span class="leading-relaxed">${utils.t('summaryDepts', utils.escapeHtml(topDept))}</span></li>`;
+            }
+
+            function renderKPIs() {
+                if (!dom.kpiGrid) return; const K = CONFIG.KEYS; const uc = utils.t('unclassified'); const dataSource = stateStore.filteredData; const lastMonthDataSource = stateStore.currentFilteredLastMonthData;
+                const totalQuantity = dataSource.reduce((sum, item) => sum + (Number(item[K.QUANTITY]) || 0), 0); const lastMonthTotal = lastMonthDataSource.reduce((sum, item) => sum + (Number(item[K.QUANTITY]) || 0), 0);
+                const trend = utils.getTrend(totalQuantity, lastMonthTotal);
+                const locationCount = [...new Set(dataSource.map(item => item[K.LOCATION] || uc))].length; const departmentCount = [...new Set(dataSource.map(item => item[K.DEPT] || uc))].length; const lastMonthDepartmentCount = [...new Set(lastMonthDataSource.map(item => item[K.DEPT] || uc))].length;
+                let deptTrendSubtext = '', deptTrendColor = '';
+                if (lastMonthDataSource.length > 0) { const deptChange = departmentCount - lastMonthDepartmentCount; if (deptChange > 0) { deptTrendSubtext = `+${utils.formatNumber(deptChange)}`; deptTrendColor='text-red-500'; } else if (deptChange < 0) { deptTrendSubtext = `${utils.formatNumber(deptChange)}`; deptTrendColor='text-green-500'; } else { deptTrendSubtext = `-`; deptTrendColor='text-slate-400'; } }
+                
+                dom.kpiGrid.innerHTML = [ 
+                    { label: utils.t('kpiTotalQuantity'), value: utils.formatNumber(totalQuantity), icon: 'ph-stack', color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-50 dark:bg-blue-900/20' }, 
+                    { label: utils.t('kpiTrend'), value: `${Math.abs(trend.percentage)}%`, subtext: trend.change !== 0 ? (trend.change > 0 ? '▲' : '▼') : '-', color: trend.color, bg: 'bg-slate-50 dark:bg-slate-800', icon: 'ph-chart-line-up' }, 
+                    { label: utils.t('kpiLocations'), value: utils.formatNumber(locationCount), icon: 'ph-map-trifold', color: 'text-orange-600 dark:text-orange-400', bg: 'bg-orange-50 dark:bg-orange-900/20' }, 
+                    { label: utils.t('kpiDepartments'), value: utils.formatNumber(departmentCount), subtext: deptTrendSubtext, subtextColor: deptTrendColor, icon: 'ph-buildings', color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-900/20' } 
+                ].map((kpi) => `<div class="relative ${kpi.bg || 'bg-white'} p-2.5 rounded-xl border border-slate-100 dark:border-slate-700 h-[70px] flex flex-col justify-center overflow-hidden group"><div class="absolute right-[-10px] bottom-[-10px] opacity-10 text-5xl pointer-events-none text-slate-900 dark:text-white transition-transform group-hover:scale-110"><i class="ph-fill ${kpi.icon}"></i></div><p class="text-[10px] font-bold text-slate-400 uppercase">${kpi.label}</p><div class="flex items-baseline gap-1 z-10"><p class="text-xl font-bold ${kpi.color} tabular-nums">${kpi.value}</p>${kpi.subtext ? `<span class="text-[10px] font-semibold ${kpi.subtextColor || kpi.color}">${kpi.subtext}</span>` : ''}</div></div>`).join('');
+            }
+
+            function renderWarning() {
+                const K = CONFIG.KEYS; const threshold = stateStore.thresholds.warning; const warningItems = stateStore.filteredData.filter(item => Number(item[K.QUANTITY]) > threshold);
+                if (!dom.warningContainer) return;
+                if (warningItems.length === 0) { dom.warningContainer.style.display = 'none'; return; }
+                dom.warningContainer.style.display = 'flex'; dom.warningTableBody.innerHTML = '';
+                warningItems.sort((a,b) => Number(b[K.QUANTITY]) - Number(a[K.QUANTITY])).forEach(item => { dom.warningTableBody.insertAdjacentHTML('beforeend', `<tr class="border-b border-red-100 dark:border-red-900/30 last:border-0"><td class="py-2 px-4 text-slate-800 dark:text-slate-200 font-medium truncate max-w-[120px]">${item[K.NAME]||''}</td><td class="py-2 px-4 text-right tabular-nums text-red-600 dark:text-red-400 font-bold">${utils.formatNumber(item[K.QUANTITY]||0)}</td></tr>`); });
+            }
+
+            function renderGroupedList(data) {
+                const container = dom.dataCardsContainer; if (!container) return; container.innerHTML = "";
+                if (!data || data.length === 0) { container.innerHTML = `<div class="col-span-full text-center py-10 text-slate-400"><i class="ph-duotone ph-magnifying-glass text-3xl mb-2"></i><p class="text-sm">データなし</p></div>`; return; }
+                const K = CONFIG.KEYS; const uc = utils.t('unclassified');
+                const groupedByLocation = data.reduce((acc, item) => { const locKey = item[K.LOCATION] || uc; if (!acc[locKey]) acc[locKey] = []; acc[locKey].push(item); return acc; }, {});
+                stateStore.groupedDataCache = groupedByLocation;
+                container.className = "grid grid-cols-2 gap-3 pb-20";
+                Object.keys(groupedByLocation).sort().forEach(loc => {
+                    const locItems = groupedByLocation[loc]; const totalQty = locItems.reduce((sum, item) => sum + (Number(item[K.QUANTITY]) || 0), 0);
+                    container.insertAdjacentHTML('beforeend', `<div class="bg-white dark:bg-slate-800 rounded-2xl p-4 shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col items-start gap-2 cursor-pointer active:scale-95 transition-transform hover:border-blue-300 dark:hover:border-blue-600" onclick="DashboardApp.openLocationDetail('${loc}')"><div class="w-10 h-10 rounded-full bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-500 mb-1"><i class="ph-fill ph-map-pin text-xl"></i></div><div class="w-full"><h3 class="font-bold text-sm text-slate-900 dark:text-white truncate w-full">${loc}</h3><div class="flex justify-between items-center mt-1"><span class="text-[10px] text-slate-400 font-bold bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded">${locItems.length} 件</span><span class="text-xs font-bold text-slate-700 dark:text-slate-300">${utils.formatNumber(totalQty)} <span class="text-[9px] font-normal text-slate-400">個</span></span></div></div></div>`);
+                });
+            }
+
+            function openLocationDetail(locationName) {
+                const panel = document.getElementById('dashboard-panel'), title = document.getElementById('dash-panel-title'), content = document.getElementById('dash-panel-content'), overlay = document.getElementById('form-overlay');
+                title.innerText = locationName; const K = CONFIG.KEYS; const items = stateStore.groupedDataCache[locationName] || [];
+                items.sort((a, b) => (Number(b[K.QUANTITY]) || 0) - (Number(a[K.QUANTITY]) || 0));
+                content.innerHTML = items.map(item => {
+                    const hasPhoto = (item[K.P1] || item[K.P2] || item[K.P3]);
+                    let photoIcon = `<div class="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-300"><i class="ph-duotone ph-cube text-lg"></i></div>`;
+                    if (item.photo1 && item.photo1.includes('base64')) photoIcon = `<img src="${item.photo1}" class="w-10 h-10 rounded-lg object-cover border border-slate-200 dark:border-slate-600">`;
+                    else if (hasPhoto) photoIcon = `<div class="w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-500"><i class="ph-fill ph-image text-lg"></i></div>`;
+                    return `<div class="flex items-center gap-3 p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm ${hasPhoto?'cursor-pointer':''}" ${hasPhoto?`onclick="DashboardApp.openPhoto('${item[K.ID]}')"`:''}><div class="shrink-0">${photoIcon}</div><div class="flex-1 min-w-0"><div class="text-sm font-bold text-slate-900 dark:text-white truncate">${item[K.NAME]||'-'}</div><div class="text-[10px] text-slate-400 truncate">${item[K.DEPT]||'-'}</div></div><div class="text-right"><span class="block text-base font-bold text-slate-900 dark:text-white leading-none">${item[K.QUANTITY]||0}</span><span class="text-[9px] text-slate-400">個</span></div></div>`;
+                }).join('');
+                overlay.style.display = 'block'; setTimeout(() => { overlay.classList.add('open'); panel.classList.add('open'); }, 10);
+            }
+            function closeLocationDetail() { document.getElementById('dashboard-panel').classList.remove('open'); document.getElementById('form-overlay').classList.remove('open'); setTimeout(() => document.getElementById('form-overlay').style.display='none', 300); }
+            function openPhoto(id) { const item = stateStore.allData.find(i => String(i.id) === String(id)); if(item) InputApp.openGallery(item); }
+
+            function renderDepartmentChart() {
+                if (!dom.departmentChart) return; const K = CONFIG.KEYS; const isDark = document.documentElement.classList.contains('dark'); const textColor = isDark ? '#94A3B8' : '#64748B'; const gridColor = isDark ? '#334155' : '#f1f5f9';
+                dom.deptChartTitle.innerHTML = stateStore.chartState.isDrilledDown ? `<button class="mr-2 hover:text-blue-500" onclick="DashboardApp.handleDeptChartBack()"><i class="ph-bold ph-arrow-left"></i></button> ${stateStore.chartState.drillDownDept}` : utils.t('deptChartTitle');
+                let dataForChart = stateStore.chartState.isDrilledDown ? stateStore.filteredData.filter(it => (it[K.DEPT] || utils.t('unclassified')) === stateStore.chartState.drillDownDept).reduce((acc, curr) => { acc[curr[K.NAME]] = (acc[curr[K.NAME]] || 0) + (Number(curr[K.QUANTITY]) || 0); return acc; }, {}) : stateStore.filteredData.reduce((acc, curr) => { const dept = curr[K.DEPT] || utils.t('unclassified'); acc[dept] = (acc[dept] || 0) + (Number(curr[K.QUANTITY]) || 0); return acc; }, {});
+                const entries = Object.entries(dataForChart).sort(utils.getChartSortComparator(stateStore.filters.sortKey));
+                const labels = entries.map(e => e[0]); const values = entries.map(e => e[1]);
+                if (departmentChartInstance) { try { departmentChartInstance.destroy(); } catch(e){} }
+                departmentChartInstance = new Chart(dom.departmentChart.getContext('2d'), { type: 'bar', data: { labels, datasets: [{ label: utils.t('kpiTotalQuantity'), data: values, backgroundColor: labels.map(l => stateStore.departmentColorMap[l] || '#3B82F6'), borderRadius: 8, maxBarThickness: 30 }] }, options: { responsive: true, maintainAspectRatio: false, onClick: (evt, elements) => { if (stateStore.chartState.isDrilledDown) { if (elements.length === 0) handleDeptChartBack(); } else { if (elements.length > 0) { handleDeptChartClick(departmentChartInstance.data.labels[elements[0].index]); } } }, plugins: { legend: { display: false }, datalabels: { anchor: 'end', align: 'top', color: textColor, font: { weight: 'bold', size: 10 }, formatter: val => utils.formatNumber(val) } }, scales: { y: { beginAtZero: true, grace: '15%', grid: { color: gridColor }, border: { display: false }, ticks: { font: { size: 10 }, color: textColor } }, x: { grid: { display: false }, border: { display: false }, ticks: { autoSkip: false, maxRotation: 45, minRotation: 45, font: { size: 9 }, color: textColor } } } } });
+            }
+            function handleDeptChartClick(dept) { setState({ chartState: { isDrilledDown: true, drillDownDept: dept }, filters: { ...stateStore.filters, searchQuery: '', selectedDept: dept, selectedLocation: 'all' }}); applyFiltersAndRender(); renderDepartmentChart(); renderComparisonChart(); }
+            function handleDeptChartBack() { setState({ chartState: { isDrilledDown: false, drillDownDept: null }, filters: { ...stateStore.filters, searchQuery: '', selectedDept: null, selectedLocation: 'all' }}); applyFiltersAndRender(); renderDepartmentChart(); renderComparisonChart(); }
+
+            function renderComparisonChart() {
+                if (!dom.comparisonChart) return; const isDark = document.documentElement.classList.contains('dark'); const textColor = isDark ? '#94A3B8' : '#64748B'; const gridColor = isDark ? '#334155' : '#f1f5f9';
+                if (comparisonChartInstance) { try { comparisonChartInstance.destroy(); } catch (e) {} }
+                let labels = [], values = [];
+                if (stateStore.chartState.isDrilledDown) {
+                    dom.comparisonChartTitle.textContent = utils.t('comparisonChartTitleDept', stateStore.chartState.drillDownDept);
+                    labels = [utils.t('kpiTrend'), utils.t('kpiTotalQuantity')];
+                    values = [stateStore.currentFilteredLastMonthData.filter(it => (it[CONFIG.KEYS.DEPT] || utils.t('unclassified')) === stateStore.chartState.drillDownDept).reduce((s,it)=>s+(Number(it[CONFIG.KEYS.QUANTITY])||0),0), stateStore.filteredData.filter(it => (it[CONFIG.KEYS.DEPT] || utils.t('unclassified')) === stateStore.chartState.drillDownDept).reduce((s,it)=>s+(Number(it[CONFIG.KEYS.QUANTITY])||0),0)];
+                } else {
+                    dom.comparisonChartTitle.innerHTML = utils.t('comparisonChartTitle');
+                    labels = stateStore.historicalData.labels || []; values = stateStore.historicalData.values || [];
+                }
+                comparisonChartInstance = new Chart(dom.comparisonChart.getContext('2d'), { type: 'bar', data: { labels, datasets: [ { label: utils.t('kpiTotalQuantity'), data: values, backgroundColor: [utils.hexToRgba('#cbd5e1',0.6), utils.hexToRgba('#3B82F6',0.8)], borderRadius: 6, barPercentage: 0.6 }, { type: 'line', label: 'Trend', data: values, borderColor: '#F59E0B', borderWidth: 2, tension: 0.4, pointBackgroundColor: '#fff', pointBorderColor: '#F59E0B', pointRadius: 3, fill: false, datalabels: { display: false } } ]}, options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, grid: { color: gridColor }, border: { display: false }, ticks: { font: { size: 10 }, color: textColor }}, x: { grid: { display: false }, border: { display: false }, ticks: { font: { size: 10 }, color: textColor }}}, plugins: { legend: { display: false }, datalabels: { anchor: 'end', align: 'top', color: textColor, font: { weight: 'bold', size: 10 }, formatter: val => utils.formatNumber(val) } } } });
+            }
+
+            function bindEvents() {
+                if (dom.reloadButton) dom.reloadButton.addEventListener('click', async () => { const spinner = document.getElementById('loadingSpinner'); if (spinner) spinner.classList.remove('hidden'); try { if(dom.monthFilter) dom.monthFilter.value = ""; stateStore.filters.selectedMonth = null; await populateFilters(); await fetchData(); } catch(e){} });
+                if (dom.locationFilter) dom.locationFilter.addEventListener('change', () => { setState({ filters: { ...stateStore.filters, selectedLocation: dom.locationFilter.value, sortKey: 'quantity_desc' }, chartState: { isDrilledDown: false, drillDownDept: null } }); applyFiltersAndRender(); renderDepartmentChart(); renderComparisonChart(); });
+                if (dom.monthFilter) dom.monthFilter.addEventListener('change', (e) => { setState({ filters: { ...stateStore.filters, selectedMonth: e.target.value || null, selectedDept: null, selectedLocation: 'all', searchQuery: '' }, chartState: { isDrilledDown: false, drillDownDept: null } }); dom.searchFilter.value = ''; fetchData(); });
+                if (dom.searchFilter) dom.searchFilter.addEventListener('input', utils.debounce(() => { setState({ filters: { ...stateStore.filters, searchQuery: dom.searchFilter.value, selectedLocation: dom.locationFilter ? dom.locationFilter.value : 'all', selectedDept: null }, chartState: { isDrilledDown: false, drillDownDept: null } }); applyFiltersAndRender(); renderDepartmentChart(); renderComparisonChart(); }, 300));
+                if (dom.warningThreshold) dom.warningThreshold.addEventListener('change', (e) => { setState({ thresholds: { warning: parseInt(e.target.value, 10) || 20 }}); renderWarning(); });
+                if (dom.langSwitcher) dom.langSwitcher.addEventListener('change', (e) => { setState({ uiLang: e.target.value }); applyFiltersAndRender(); renderDepartmentChart(); renderComparisonChart(); });
+            }
+
+            async function populateFilters() { 
+                const sheetNames = await api.getSheetNames(); dom.monthFilter.innerHTML = ''; 
+                sheetNames.forEach(name => { dom.monthFilter.insertAdjacentHTML('beforeend', `<option value="${name}">${name.replace(/-/g,'/')}</option>`); }); 
+                if (!stateStore.filters.selectedMonth && sheetNames.length > 0) stateStore.filters.selectedMonth = sheetNames[0];
+                dom.monthFilter.value = stateStore.filters.selectedMonth || ''; 
+            }
+
+            async function init() {
+                cacheDom(); bindEvents();
+                await populateFilters(); await fetchData();
+                const observer = new IntersectionObserver((entries, obs) => { entries.forEach(entry => { if (entry.isIntersecting) { if (entry.target.id === 'departmentChart') renderDepartmentChart(); else if (entry.target.id === 'comparisonChart') renderComparisonChart(); obs.unobserve(entry.target); } }); }, { rootMargin: '50px' });
+                document.querySelectorAll('.lazy-chart').forEach(chart => { if (!chart) return; observer.observe(chart); });
+            }
+
+            return { init, handleDeptChartBack, openPhoto, openLocationDetail, closeLocationDetail };
+        })();
+
+        document.addEventListener('DOMContentLoaded', () => {
+            if(typeof AppRouter !== 'undefined') AppRouter.init();
+        });
+    </script>
+</body>
+</html>
